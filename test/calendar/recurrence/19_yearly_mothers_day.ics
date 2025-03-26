@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Caledonia Test Suite//EN
+BEGIN:VEVENT
+UID:yearly-mothers-day-recur@caledonia.test
+DTSTAMP:20250329T000000Z
+DTSTART:20250512T100000Z
+DTEND:20250512T110000Z
+SUMMARY:Mother's Day (2nd Sunday in May)
+DESCRIPTION:Yearly event on the second Sunday in May (Mother's Day in the US)
+RRULE:FREQ=YEARLY;BYMONTH=5;BYDAY=2SU
+END:VEVENT
+END:VCALENDAR

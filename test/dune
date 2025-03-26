@@ -1,0 +1,5 @@
+(tests
+ (names test_calendar_dir test_query test_recur)
+ (libraries caledonia_lib alcotest str ptime)
+ (deps
+  (source_tree calendar)))

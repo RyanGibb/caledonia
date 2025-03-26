@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Caledonia Test Suite//EN
+BEGIN:VEVENT
+UID:monthly-third-sunday-recur@caledonia.test
+DTSTAMP:20250329T000000Z
+DTSTART:20250519T090000Z
+DTEND:20250519T100000Z
+SUMMARY:Monthly on Third Sunday
+DESCRIPTION:Monthly event occurring on the third Sunday of each month
+RRULE:FREQ=MONTHLY;BYDAY=3SU
+END:VEVENT
+END:VCALENDAR

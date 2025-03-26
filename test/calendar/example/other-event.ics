@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Caledonia Test Suite//EN
+BEGIN:VEVENT
+UID:other-test-event@caledonia.test
+DTSTAMP:20250329T000000Z
+DTSTART:20250329T090000Z
+DTEND:20250329T100000Z
+SUMMARY:Other Test Event
+LOCATION:Test Location
+DESCRIPTION:This is a test event for testing the Caledonia calendar library.
+END:VEVENT
+END:VCALENDAR

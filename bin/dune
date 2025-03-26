@@ -1,0 +1,17 @@
+(executable
+ (name main)
+ (public_name caled)
+ (package caledonia)
+ (libraries
+  caledonia_lib
+  cmdliner
+  fmt
+  logs
+  logs.fmt
+  logs.cli
+  re
+  ptime
+  ptime.clock.os
+  eio
+  eio_main)
+ (modules main list_cmd search_cmd query_args))

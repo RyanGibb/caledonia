@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Caledonia Test Suite//EN
+BEGIN:VEVENT
+UID:monthly-specific-months-recur@caledonia.test
+DTSTAMP:20250329T000000Z
+DTSTART:20250301T110000Z
+DTEND:20250301T120000Z
+SUMMARY:Monthly in Mar, Jun, Sep, Dec
+DESCRIPTION:Monthly event occurring only in specific months of the year
+RRULE:FREQ=MONTHLY;BYMONTH=3,6,9,12
+END:VEVENT
+END:VCALENDAR

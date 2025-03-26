@@ -1,0 +1,17 @@
+(library
+ (name caledonia_lib)
+ (public_name caledonia.lib)
+ (libraries
+  icalendar
+  ptime
+  ptime.clock.os
+  calendar
+  fmt
+  logs
+  re
+  yojson
+  uuidm
+  eio
+  eio_main)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq)))

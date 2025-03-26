@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Caledonia Test Suite//EN
+BEGIN:VEVENT
+UID:monthly-2nd-monday-recur@caledonia.test
+DTSTAMP:20250329T000000Z
+DTSTART:20250513T120000Z
+DTEND:20250513T130000Z
+SUMMARY:Monthly on Second Monday
+DESCRIPTION:Monthly event occurring on the second Monday of each month
+RRULE:FREQ=MONTHLY;BYDAY=2MO
+END:VEVENT
+END:VCALENDAR

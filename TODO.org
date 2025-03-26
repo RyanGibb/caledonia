@@ -1,0 +1,15 @@
+* DONE list/search events
+* TODO diagnose events failing to parse
+* TODO timezones and daylight saving
+* TODO add/remove events
+* TODO edit events
+will need to modify the event to ICS code to retain fields we don't use
+* TODO [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
+* TODO CalDAV syncing
+Currently, you can use [[https://github.com/pimutils/vdirsyncer][vdirsyncer]]
+* TODO support a DSL of date queries (e.g. query for every event on a Monday)
+* TODO support querying times as well as dates
+* TODO custom date/time formatting
+* TODO support querying regex
+* TODO server mode
+and maybe hold =Event='s in-memory in a =Collection= instead of parsing them for every =Query=
