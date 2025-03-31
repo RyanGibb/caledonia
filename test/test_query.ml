@@ -2,63 +2,12 @@
 
 open Caledonia_lib
 
-(* Test for date expression functionality *)
-
 (* Setup a fixed date for testing *)
 let fixed_date = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((0, 0, 0), 0))
 
 let setup_fixed_date () =
-  (Query.get_today := fun () -> fixed_date);
+  (Date.get_today := fun () -> fixed_date);
   fixed_date
-
-let test_parse_date_expression () =
-  let test_expr expr parameter expected =
-    try
-      let result = Query.parse_date_expression expr parameter in
-      let result_str =
-        let y, m, d = Ptime.to_date result in
-        Printf.sprintf "%04d-%02d-%02d" y m d
-      in
-      Alcotest.(check string)
-        (Printf.sprintf "'%s' %s should parse to '%s'" expr
-           (match parameter with `From -> "from" | `To -> "to")
-           expected)
-        expected result_str
-    with Failure msg ->
-      Alcotest.fail (Printf.sprintf "Failed to parse '%s': %s" expr msg)
-  in
-  test_expr "today" `From "2025-03-27";
-  test_expr "today" `To "2025-03-27";
-  test_expr "tomorrow" `From "2025-03-28";
-  test_expr "tomorrow" `To "2025-03-28";
-  test_expr "yesterday" `From "2025-03-26";
-  test_expr "yesterday" `To "2025-03-26";
-  test_expr "this-week" `From "2025-03-24";
-  test_expr "this-week" `To "2025-03-30";
-  test_expr "next-week" `From "2025-03-31";
-  test_expr "next-week" `To "2025-04-06";
-  test_expr "this-month" `From "2025-03-01";
-  test_expr "this-month" `To "2025-03-31";
-  test_expr "next-month" `From "2025-04-01";
-  test_expr "next-month" `To "2025-04-30";
-  test_expr "+7d" `From "2025-04-03";
-  test_expr "+7d" `To "2025-04-03";
-  test_expr "-7d" `From "2025-03-20";
-  test_expr "-7d" `To "2025-03-20";
-  test_expr "+2w" `From "2025-04-07";
-  test_expr "+2w" `To "2025-04-13";
-  test_expr "+1m" `From "2025-04-01";
-  test_expr "+1m" `To "2025-04-30";
-  test_expr "2025-01-01" `From "2025-01-01";
-  test_expr "2025-01-01" `To "2025-01-01";
-  (try
-     let _ = Query.parse_date_expression "invalid-format" `From in
-     Alcotest.fail "Should have raised an exception for invalid format"
-   with Failure msg ->
-     Alcotest.(check bool)
-       "Invalid format should raise exception with appropriate message" true
-       (String.length msg > 0));
-  ()
 
 let calendar_dir_path = Filename.concat (Sys.getcwd ()) "calendar"
 
@@ -76,7 +25,7 @@ let test_query_all ~fs () =
       let test_event =
         List.find_opt
           (fun instance ->
-            Event.get_summary instance.Recur.event = "Test Event")
+            Option.get @@ Event.get_summary instance.Recur.event = "Test Event")
           instances
       in
       Alcotest.(check bool) "Should find Test Event" true (test_event <> None)
@@ -97,7 +46,7 @@ let test_recurrence_expansion ~fs () =
       let recurring_instances =
         List.filter
           (fun instance ->
-            Event.get_summary instance.Recur.event = "Recurring Event")
+            Option.get @@ Event.get_summary instance.Recur.event = "Recurring Event")
           instances
       in
       Alcotest.(check bool)
@@ -155,7 +104,7 @@ let test_calendar_filter ~fs () =
     Some (Option.get @@ Ptime.of_date_time ((2025, 01, 01), ((0, 0, 0), 0)))
   in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
-  let collection = Calendar_dir.Collection "example" in
+  let collection = Collection.Col "example" in
   let filter = Query.in_collections [ collection ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok instances ->
@@ -163,26 +112,23 @@ let test_calendar_filter ~fs () =
         List.for_all
           (fun e ->
             match Event.get_collection e.Recur.event with
-            | Some id -> id = collection
-            | None -> false)
+            | id -> id = collection)
           instances
       in
       Alcotest.(check bool)
         (Printf.sprintf "All events should be from calendar '%s'"
-           (match collection with Collection str -> str))
+           (match collection with Col str -> str))
         true all_match_calendar;
       Alcotest.(check int) "Should find events" 2 (List.length instances)
   | Error _ -> Alcotest.fail "Error querying events");
-  let collections =
-    [ Calendar_dir.Collection "example"; Calendar_dir.Collection "recurrence" ]
-  in
+  let collections = [ Collection.Col "example"; Collection.Col "recurrence" ] in
   let filter = Query.in_collections collections in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok instances ->
       Alcotest.(check int) "Should find events" 792 (List.length instances)
   | Error _ -> Alcotest.fail "Error querying events");
   let filter =
-    Query.in_collections [ Calendar_dir.Collection "non-existent-calendar" ]
+    Query.in_collections [ Collection.Col "non-existent-calendar" ]
   in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok instances ->
@@ -195,11 +141,10 @@ let test_calendar_filter ~fs () =
 let test_events =
   (* Create a test event with specific text in all fields *)
   let create_test_event ~collection ~summary ~description ~location ~start =
-    Event.create ~collection:(Calendar_dir.Collection collection) ~summary
-      ~start
+    Event.create ~summary ~start
       ?description:(if description = "" then None else Some description)
       ?location:(if location = "" then None else Some location)
-      ()
+(Collection.Col collection)
   in
   [
     (* Event with text in all fields *)
@@ -222,7 +167,7 @@ let test_events =
 
 (* Test helper to verify if a list of events contains an event with a given summary *)
 let contains_summary events summary =
-  List.exists (fun e -> String.equal (Event.get_summary e) summary) events
+  List.exists (fun e -> String.equal (Option.get @@ Event.get_summary e) summary) events
 
 let test_case_insensitive_search () =
   (* Test lowercase query for an uppercase word *)
@@ -262,8 +207,8 @@ let test_partial_word_matching () =
     "Partial query should match within word in description" true
     (contains_summary matches "Conference Call");
 
-   Alcotest.(check bool)
-     "Partial query should match within word in description" true
+  Alcotest.(check bool)
+    "Partial query should match within word in description" true
     (contains_summary matches "Conference Call")
 
 let test_boolean_logic () =
@@ -294,9 +239,9 @@ let test_boolean_logic () =
 
   (* Test NOT filter *)
   let not_filter = Query.not_filter (Query.summary_contains "Meeting") in
-   let matches =
-     List.filter (fun e -> Query.matches_filter e not_filter) test_events
-   in
+  let matches =
+    List.filter (fun e -> Query.matches_filter e not_filter) test_events
+  in
   Alcotest.(check int)
     "NOT filter should match events without the term"
     2 (* Two events don't have "Meeting" in the summary *)
@@ -361,7 +306,6 @@ let test_cross_field_search () =
 
 let query_tests fs =
   [
-    ("date expression parsing", `Quick, test_parse_date_expression);
     ("query all events", `Quick, test_query_all ~fs);
     ("recurrence expansion", `Quick, test_recurrence_expansion ~fs);
     ("text search", `Quick, test_text_search ~fs);

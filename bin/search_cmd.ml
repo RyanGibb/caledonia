@@ -8,21 +8,20 @@ let run ?from ?to_ ?calendar ?count ?query_text ~summary ~description ~location
   let ( let* ) = Result.bind in
   let filters = ref [] in
   let from, to_ =
-    match Query.convert_relative_date_formats ~today ~tomorrow ~week ~month with
+    match Date.convert_relative_date_formats ~today ~tomorrow ~week ~month with
     | Some (from, to_) -> (Some from, to_)
     | None -> (
-        let max_date = Query.add_years (!Query.get_today ()) 75 in
+        let max_date = Date.add_years (!Date.get_today ()) 75 in
         match (from, to_) with
-        | Some f, Some t -> (Some f, Query.to_end_of_day t)
-        | Some f, None -> (Some f, Query.to_end_of_day max_date)
-        | None, Some t -> (None, Query.to_end_of_day t)
-        | None, None -> (None, Query.to_end_of_day max_date))
+        | Some f, Some t -> (Some f, Date.to_end_of_day t)
+        | Some f, None -> (Some f, Date.to_end_of_day max_date)
+        | None, Some t -> (None, Date.to_end_of_day t)
+        | None, None -> (None, Date.to_end_of_day max_date))
   in
   (match calendar with
   | Some collection_id ->
       filters :=
-        Query.in_collections [ Calendar_dir.Collection collection_id ]
-        :: !filters
+        Query.in_collections [ Collection.Col collection_id ] :: !filters
   | None -> ());
   (match query_text with
   | Some text ->
@@ -116,38 +115,41 @@ let cmd ~fs calendar_dir =
          example, you can find all recurring events without specifying any \
          search text.";
       `S Manpage.s_options;
-      `S "DATE FORMATS";
     ]
     @ date_format_manpage_entries
     @ [
-        `S "EXAMPLES";
-        `P "Search for 'meeting' in all events:";
-        `P "  caled search meeting";
-        `P "Search for 'interview' in event summaries only:";
-        `P "  caled search --summary interview";
-        `P "Search for 'conference' in a specific calendar:";
-        `P "  caled search --calendar work conference";
-        `P "Search for 'workshop' in event descriptions for today only:";
-        `P "  caled search --description --today workshop";
-        `P "Search for 'project' in events this month:";
-        `P "  caled search --month project";
-        `P "Search for 'workshop' in event descriptions within a date range:";
-        `P
-          "  caled search --description --from 2025-03-27 --to 2025-04-01 \
-           workshop";
-        `P "Search for recurring events only:";
-        `P "  caled search --recurring meeting";
-        `P "Search for non-recurring events only:";
-        `P "  caled search --non-recurring appointment";
-        `P "Find all recurring events:";
-        `P "  caled search --recurring";
-        `P "Find all events in a specific calendar:";
-        `P "  caled search --calendar work";
+        `S Manpage.s_examples;
+        `I ("Search for 'meeting' in all events:", "caled search meeting");
+        `I
+          ( "Search for 'interview' in event summaries only:",
+            "caled search --summary interview" );
+        `I
+          ( "Search for 'conference' in a specific calendar:",
+            "caled search --calendar work conference" );
+        `I
+          ( "Search for 'workshop' in event descriptions for today only:",
+            "caled search --description --today workshop" );
+        `I
+          ( "Search for 'project' in events this month:",
+            "caled search --month project" );
+        `I
+          ( "Search for 'workshop' in event descriptions within a date range:",
+            "caled search --description --from 2025-03-27 --to 2025-04-01 \
+             workshop" );
+        `I
+          ( "Search for recurring events only:",
+            "caled search --recurring meeting" );
+        `I
+          ( "Search for non-recurring events only:",
+            "caled search --non-recurring appointment" );
+        `I ("Find all recurring events:", "caled search --recurring");
+        `I
+          ( "Find all events in a specific calendar:",
+            "caled search --calendar work" );
       ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
   in
-
   let info = Cmd.info "search" ~doc ~man ~exits:exit_info in
   Cmd.v info term

@@ -1,6 +1,6 @@
 (** Functions for formatting various data structures as strings *)
 
-type format = [ `Text | `Json | `Csv | `Ics | `Table | `Sexp ]
+type format = [ `Text | `TextId | `Json | `Csv | `Ics | `Entries | `Sexp ]
 (** Format type for output *)
 
 (** Functions for formatting specific event types *)

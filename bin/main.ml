@@ -4,6 +4,10 @@ open Cmdliner
 
 let list_cmd = List_cmd.cmd
 let search_cmd = Search_cmd.cmd
+let show_cmd = Show_cmd.cmd
+let add_cmd = Add_cmd.cmd
+let delete_cmd = Delete_cmd.cmd
+let edit_cmd = Edit_cmd.cmd
 let doc = "Command-line calendar tool for managing local .ics files"
 let version = "%%VERSION%%"
 
@@ -36,7 +40,14 @@ let main env =
       match
         Cmd.eval_value
           (Cmd.group info ~default
-             [ list_cmd ~fs calendar_dir; search_cmd ~fs calendar_dir ])
+             [
+               list_cmd ~fs calendar_dir;
+               search_cmd ~fs calendar_dir;
+               show_cmd ~fs calendar_dir;
+               add_cmd ~fs calendar_dir;
+               edit_cmd ~fs calendar_dir;
+               delete_cmd ~fs calendar_dir;
+             ])
       with
       | Ok (`Ok n) -> n
       | Ok _ -> 0

@@ -8,10 +8,7 @@ let from_arg =
      +Nm)"
   in
   let i = Arg.info [ "from"; "f" ] ~docv:"DATE" ~doc in
-  let parse_date s =
-    try Ok (Query.parse_date_expression s `From)
-    with Failure msg -> Error (`Msg msg)
-  in
+  let parse_date s = Date.parse_date s `From in
   Arg.(value @@ opt (some (Cmdliner.Arg.conv (parse_date, Ptime.pp))) None i)
 
 let to_arg =
@@ -20,10 +17,7 @@ let to_arg =
      this-week, next-week, this-month, next-month, +Nd, -Nd, +Nw, +Nm)"
   in
   let i = Arg.info [ "to"; "t" ] ~docv:"DATE" ~doc in
-  let parse_date s =
-    try Ok (Query.parse_date_expression s `To)
-    with Failure msg -> Error (`Msg msg)
-  in
+  let parse_date s = Date.parse_date s `From in
   Arg.(value @@ opt (some (Cmdliner.Arg.conv (parse_date, Ptime.pp))) None i)
 
 let calendar_arg =
@@ -36,15 +30,16 @@ let calendar_arg =
 let format_enum =
   [
     ("text", `Text);
+    ("id", `TextId);
     ("json", `Json);
     ("csv", `Csv);
     ("ics", `Ics);
-    ("table", `Table);
+    ("records", `Entries);
     ("sexp", `Sexp);
   ]
 
 let format_arg =
-  let doc = "Output format (text, json, csv, ics, table, sexp)" in
+  let doc = "Output format (text, id, json, csv, ics, table, sexp)" in
   Arg.(
     value
     & opt (enum format_enum) `Text
@@ -72,6 +67,7 @@ let month_arg =
 
 let date_format_manpage_entries =
   [
+    `S "DATE FORMATS";
     `P "Date format flags:";
     `I ("--today, -d", "Show events for today only");
     `I ("--tomorrow", "Show events for tomorrow only");
@@ -90,3 +86,10 @@ let date_format_manpage_entries =
     `I ("+Nw", "N weeks from today (e.g., +4w for 4 weeks from today)");
     `I ("+Nm", "N months from today (e.g., +2m for 2 months from today)");
   ]
+
+let convert_relative_date ~today ~tomorrow ~week ~month =
+  if today then Some "today"
+  else if tomorrow then Some "tomorrow"
+  else if week then Some "this-week"
+  else if month then Some "this-month"
+  else None

@@ -6,26 +6,26 @@ let run ?from ?to_ ?calendar ?count ~format ~today ~tomorrow ~week ~month ~fs
     calendar_dir =
   let ( let* ) = Result.bind in
   let from, to_ =
-    match Query.convert_relative_date_formats ~today ~tomorrow ~week ~month with
+    match Date.convert_relative_date_formats ~today ~tomorrow ~week ~month with
     | Some (from, to_) -> (Some from, to_)
     | None -> (
         match (from, to_) with
-        | Some f, Some t -> (Some f, Query.to_end_of_day t)
+        | Some f, Some t -> (Some f, Date.to_end_of_day t)
         | Some f, None ->
-            let one_month_later = Query.add_months f 1 in
+            let one_month_later = Date.add_months f 1 in
             (Some f, one_month_later)
         | None, Some t ->
-            let today_date = !Query.get_today () in
-            (Some today_date, Query.to_end_of_day t)
+            let today_date = !Date.get_today () in
+            (Some today_date, Date.to_end_of_day t)
         | None, None ->
-            let today_date = !Query.get_today () in
-            let one_month_later = Query.add_months today_date 1 in
+            let today_date = !Date.get_today () in
+            let one_month_later = Date.add_months today_date 1 in
             (Some today_date, one_month_later))
   in
   let filter =
     match calendar with
     | Some collection_id ->
-        Some (Query.in_collections [ Calendar_dir.Collection collection_id ])
+        Some (Query.in_collections [ Collection.Col collection_id ])
     | None -> None
   in
   let* results =
@@ -60,32 +60,25 @@ let cmd ~fs calendar_dir =
       `P "You can use date flags to show events for a specific time period.";
       `P "You can also filter events by calendar using the --calendar flag.";
       `S Manpage.s_options;
-      `S "DATE FORMATS";
     ]
     @ date_format_manpage_entries
     @ [
-        `S "EXAMPLES";
-        `P "List all events for today:";
-        `P "  caled list --today";
-        `P "List all events for tomorrow:";
-        `P "  caled list --tomorrow";
-        `P "List all events for the current week:";
-        `P "  caled list --week";
-        `P "List all events for the current month:";
-        `P "  caled list --month";
-        `P "List events within a specific date range:";
-        `P "  caled list --from 2025-03-27 --to 2025-04-01";
-        `P "List events from a specific calendar:";
-        `P "  caled list --calendar work";
-        `P "List events in JSON format:";
-        `P "  caled list --format json";
-        `P "Limit the number of events shown:";
-        `P "  caled list --count 5";
+        `S Manpage.s_examples;
+        `I ("List all events for today:", "caled list --today");
+        `I ("List all events for tomorrow:", "caled list --tomorrow");
+        `I ("List all events for the current week:", "caled list --week");
+        `I ("List all events for the current month:", "caled list --month");
+        `I
+          ( "List events within a specific date range:",
+            "caled list --from 2025-03-27 --to 2025-04-01" );
+        `I
+          ("List events from a specific calendar:", "caled list --calendar work");
+        `I ("List events in JSON format:", "caled list --format json");
+        `I ("Limit the number of events shown:", "caled list --count 5");
       ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
   in
-
   let info = Cmd.info "list" ~doc ~man ~exits:exit_info in
   Cmd.v info term
