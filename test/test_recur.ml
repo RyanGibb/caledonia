@@ -12,12 +12,12 @@ let test_recurring_events_in_date_range () =
   (* Weekly recurrence *)
   let recurring_event =
     Event.create ~summary:"Weekly Recurring Event" ~start:event_start
-      ~recurrence ~collection:(Calendar_dir.Collection "test") ()
+      ~recurrence (Collection.Col "test")
   in
   let test_date_range from_str to_str expected_count =
     try
-      let from = Some (Query.parse_date_expression from_str `From) in
-      let to_ = Query.parse_date_expression to_str `To in
+      let from = Some (Result.get_ok @@ Date.parse_date from_str `From) in
+      let to_ = Result.get_ok @@ Date.parse_date to_str `To in
       let instances = Recur.expand_event recurring_event ~from ~to_ in
       Printf.printf "Testing date range: %s to %s\n" from_str to_str;
       Printf.printf "Found %d instances:\n" (List.length instances);
@@ -73,7 +73,7 @@ let parse_date s =
 
 let load_event_from_file ~fs event_file =
   let file = Eio.Path.(fs / test_dir / event_file) in
-  let _, file_path = file in
+  let _, file_name = Option.get @@ Eio.Path.split file in
   let content = Eio.Path.load file in
   match Icalendar.parse content with
   | Error err -> failwith (Printf.sprintf "Error parsing calendar: %s" err)
@@ -83,15 +83,8 @@ let load_event_from_file ~fs event_file =
         List.find_map (function `Event e -> Some e | _ -> None) components
       with
       | None -> failwith "No event found in file"
-      | Some ical_event -> (
-          match
-            Event.of_icalendar (Calendar_dir.Collection "example") ical_event
-          with
-          | Ok event -> event
-          | Error (`Msg msg) ->
-              failwith
-                (Printf.sprintf "Error parsing event from %s: %s\n%!" file_path
-                   msg)))
+      | Some ical_event ->
+          Event.of_icalendar (Collection.Col "example") ~file_name ical_event)
 
 (* Format RRULE for display *)
 let format_rrule_str rule =
@@ -132,7 +125,7 @@ let test_recurrence_expansion ~fs event_file start_str end_str expected_count =
     | Some rule -> format_rrule_str rule
     | None -> "No recurrence rule"
   in
-  let summary = Event.get_summary event in
+  let summary = Option.get @@ Event.get_summary event in
   let msg =
     Printf.sprintf
       "Expected %d instances for '%s' (%s) between %s and %s, but got %d"

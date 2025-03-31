@@ -1,4 +1,4 @@
-type format = [ `Text | `Json | `Csv | `Ics | `Table | `Sexp ]
+type format = [ `Text | `Json | `Csv | `Ics | `Entries | `Sexp ]
 
 let format_date date =
   let y, m, d = Ptime.to_date date in
@@ -22,40 +22,145 @@ let format_time date =
 let format_datetime date =
   Printf.sprintf "%s %s" (format_date date) (format_time date)
 
-let format_event ?(format = `Text) event =
+let next_day day ~next =
+  let y1, m1, d1 = Ptime.to_date day in
+  let y2, m2, d2 = Ptime.to_date next in
+  y1 == y2 && m1 == m2 && d1 == d2 - 1
+
+(* exosed from icalendar *)
+
+let weekday_strings =
+  [
+    (`Monday, "MO");
+    (`Tuesday, "TU");
+    (`Wednesday, "WE");
+    (`Thursday, "TH");
+    (`Friday, "FR");
+    (`Saturday, "SA");
+    (`Sunday, "SU");
+  ]
+
+let freq_strings =
+  [
+    (`Daily, "DAILY");
+    (`Hourly, "HOURLY");
+    (`Minutely, "MINUTELY");
+    (`Monthly, "MONTHLY");
+    (`Secondly, "SECONDLY");
+    (`Weekly, "WEEKLY");
+    (`Yearly, "YEARLY");
+  ]
+
+let date_to_str (y, m, d) = Printf.sprintf "%04d%02d%02d" y m d
+
+let datetime_to_str ptime utc =
+  let date, ((hh, mm, ss), _) = Ptime.to_date_time ptime in
+  Printf.sprintf "%sT%02d%02d%02d%s" (date_to_str date) hh mm ss
+    (if utc then "Z" else "")
+
+let timestamp_to_ics ts buf =
+  Buffer.add_string buf
+  @@
+  match ts with
+  | `Utc ts -> datetime_to_str ts true
+  | `Local ts -> datetime_to_str ts false
+  | `With_tzid (ts, _str) -> (* TODO *) datetime_to_str ts false
+
+let recurs_to_ics (freq, count_or_until, interval, l) buf =
+  let write_rulepart key value =
+    Buffer.add_string buf key;
+    Buffer.add_char buf '=';
+    Buffer.add_string buf value
+  in
+  let int_list l = String.concat "," @@ List.map string_of_int l in
+  let recur_to_ics = function
+    | `Byminute byminlist -> write_rulepart "BYMINUTE" (int_list byminlist)
+    | `Byday bywdaylist ->
+        let wday (weeknumber, weekday) =
+          (if weeknumber = 0 then "" else string_of_int weeknumber)
+          ^ List.assoc weekday weekday_strings
+        in
+        write_rulepart "BYDAY" (String.concat "," @@ List.map wday bywdaylist)
+    | `Byhour byhrlist -> write_rulepart "BYHOUR" (int_list byhrlist)
+    | `Bymonth bymolist -> write_rulepart "BYMONTH" (int_list bymolist)
+    | `Bymonthday bymodaylist ->
+        write_rulepart "BYMONTHDAY" (int_list bymodaylist)
+    | `Bysecond byseclist -> write_rulepart "BYSECOND" (int_list byseclist)
+    | `Bysetposday bysplist -> write_rulepart "BYSETPOS" (int_list bysplist)
+    | `Byweek bywknolist -> write_rulepart "BYWEEKNO" (int_list bywknolist)
+    | `Byyearday byyrdaylist ->
+        write_rulepart "BYYEARDAY" (int_list byyrdaylist)
+    | `Weekday weekday ->
+        write_rulepart "WKST" (List.assoc weekday weekday_strings)
+  in
+  write_rulepart "FREQ" (List.assoc freq freq_strings);
+  (match count_or_until with
+  | None -> ()
+  | Some x -> (
+      Buffer.add_char buf ';';
+      match x with
+      | `Count c -> write_rulepart "COUNT" (string_of_int c)
+      | `Until enddate ->
+          (* TODO cleanup *)
+          Buffer.add_string buf "UNTIL=";
+          timestamp_to_ics enddate buf));
+  (match interval with
+  | None -> ()
+  | Some i ->
+      Buffer.add_char buf ';';
+      write_rulepart "INTERVAL" (string_of_int i));
+  List.iter
+    (fun recur ->
+      Buffer.add_char buf ';';
+      recur_to_ics recur)
+    l
+
+let format_alt ~format ~start ~end_ event =
   let open Event in
   match format with
   | `Text ->
-      let summary = get_summary event in
-      let date = format_date (get_start event) in
-      let time = format_time (get_start event) in
-      let end_time_str =
-        match get_end event with
-        | Some e -> Printf.sprintf "-%s" (format_time e)
-        | None -> ""
+      let id = get_id event in
+      let start_date = " " ^ format_date start in
+      let start_time =
+        match get_day_event event with
+        | true -> ""
+        | false -> " " ^ format_time start
       in
-      let location_str =
-        match get_location event with
-        | Some loc when loc <> "" -> Printf.sprintf " @ %s" loc
+      let end_date, end_time =
+        match end_ with
+        | None -> ("", "")
+        | Some end_ -> (
+            match (get_day_event event, next_day start ~next:end_) with
+            | true, true -> ("", "")
+            | true, _ -> (" - " ^ format_date end_, "")
+            | false, true -> ("", " - " ^ format_time end_)
+            | false, _ -> (" - " ^ format_date end_, " " ^ format_time end_))
+      in
+      let summary =
+        match get_summary event with
+        | Some summary when summary <> "" -> " " ^ summary
         | _ -> ""
       in
-      let recur_str =
-        match get_recurrence event with
-        | Some _ -> Printf.sprintf " (recurring)"
-        | None -> ""
+      let location =
+        match get_location event with
+        | Some loc when loc <> "" -> " @" ^ loc
+        | _ -> ""
       in
-      Printf.sprintf "%s %s%s %s%s%s" date time end_time_str summary
-        location_str recur_str
+      Printf.sprintf "%-45s%s%s%s%s%s%s" id start_date start_time end_date
+        end_time summary location
   | `Json ->
       let open Yojson.Safe in
       let json =
         `Assoc
           [
             ("id", `String (get_id event));
-            ("summary", `String (get_summary event));
-            ("start", `String (format_datetime (get_start event)));
+            ( "summary",
+              match get_summary event with
+              | Some summary -> `String summary
+              | None -> `Null );
+            ("start", `String (format_datetime start));
             ( "end",
-              match get_end event with
+              match end_ with
               | Some e -> `String (format_datetime e)
               | None -> `Null );
             ( "location",
@@ -68,54 +173,61 @@ let format_event ?(format = `Text) event =
               | None -> `Null );
             ( "calendar",
               match get_collection event with
-              | Some (Calendar_dir.Collection cal) -> `String cal
-              | None -> `Null );
+              | Collection.Col cal -> `String cal );
           ]
       in
       to_string json
   | `Csv ->
-      let summary = get_summary event in
-      let start = format_datetime (get_start event) in
+      let summary =
+        match get_summary event with Some summary -> summary | None -> ""
+      in
+      let start = format_datetime start in
       let end_str =
-        match get_end event with Some e -> format_datetime e | None -> ""
+        match end_ with Some e -> format_datetime e | None -> ""
       in
       let location =
         match get_location event with Some loc -> loc | None -> ""
       in
       let cal_id =
-        match get_collection event with
-        | Some (Calendar_dir.Collection cal) -> cal
-        | None -> ""
+        match get_collection event with Collection.Col cal -> cal
       in
       Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start end_str
         location cal_id
   | `Ics ->
       let cal_props = [] in
       let event_ical = Event.to_icalendar event in
-      Icalendar.to_ics (cal_props, [ `Event event_ical ])
-  | `Table ->
-      let width = 80 in
-      let hr = String.make width '-' in
-      let summary = get_summary event in
-      let start = format_datetime (get_start event) in
+      Icalendar.to_ics ~cr:true (cal_props, [ `Event event_ical ])
+  | `Entries ->
+      let summary =
+        match get_summary event with Some summary -> summary | None -> ""
+      in
+      let start = format_datetime start in
       let end_str =
-        match get_end event with Some e -> format_datetime e | None -> ""
+        match end_ with Some e -> format_datetime e | None -> ""
       in
       let location =
         match get_location event with Some loc -> loc | None -> ""
       in
-      Printf.sprintf
-        "%s\n\
-         | %-20s | %-30s |\n\
-         | %-20s | %-30s |\n\
-         | %-20s | %-30s |\n\
-         | %-20s | %-30s |\n\
-         %s"
-        hr "Summary" summary "Start" start "End" end_str "Location" location hr
+      let description =
+        match get_description event with Some desc -> desc | None -> ""
+      in
+      let rrule =
+        match get_recurrence event with
+        | Some r ->
+            let buf = Buffer.create 128 in
+            recurs_to_ics r buf;
+            Buffer.contents buf
+        | None -> ""
+      in
+      Printf.sprintf "%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s" "Summary"
+        summary "Start" start "End" end_str "Location" location "Description"
+        description "Reccurence" rrule
   | `Sexp ->
-      let summary = get_summary event in
+      let summary =
+        match get_summary event with Some summary -> summary | None -> ""
+      in
       let start_date, start_time =
-        let date = get_start event in
+        let date = start in
         let y, m, d = Ptime.to_date date in
         let _, ((h, min, s), _) = Ptime.to_date_time date in
         let cal_date = CalendarLib.Date.make y m d in
@@ -133,7 +245,7 @@ let format_event ?(format = `Text) event =
           Printf.sprintf "(%02d %02d %02d)" h min s )
       in
       let end_str =
-        match get_end event with
+        match end_ with
         | Some end_date ->
             let y, m, d = Ptime.to_date end_date in
             let _, ((h, min, s), _) = Ptime.to_date_time end_date in
@@ -164,9 +276,7 @@ let format_event ?(format = `Text) event =
       in
       let calendar =
         match get_collection event with
-        | Some (Calendar_dir.Collection cal) ->
-            Printf.sprintf "\"%s\"" (String.escaped cal)
-        | None -> "nil"
+        | Collection.Col cal -> Printf.sprintf "\"%s\"" (String.escaped cal)
       in
       let id = get_id event in
       Printf.sprintf
@@ -175,24 +285,13 @@ let format_event ?(format = `Text) event =
         (String.escaped id) (String.escaped summary) start_date start_time
         end_str location description calendar
 
+let format_event ?(format = `Text) event =
+  format_alt ~format ~start:(Event.get_start event) ~end_:(Event.get_end event)
+    event
+
 let format_instance ?(format = `Text) instance =
-  match format with
-  | `Text ->
-      let summary = Event.get_summary instance.Recur.event in
-      let date = format_date instance.Recur.start in
-      let time = format_time instance.Recur.start in
-      let end_time_str =
-        match instance.Recur.end_ with
-        | Some e -> Printf.sprintf "-%s" (format_time e)
-        | None -> ""
-      in
-      let location_str =
-        match Event.get_location instance.Recur.event with
-        | Some loc when loc <> "" -> Printf.sprintf " @ %s" loc
-        | _ -> ""
-      in
-      Printf.sprintf "%s %s%s %s%s" date time end_time_str summary location_str
-  | format -> format_event ~format instance.Recur.event
+  let open Recur in
+  format_alt ~format ~start:instance.start ~end_:instance.end_ instance.event
 
 let format_events ?(format = `Text) events =
   match format with
@@ -205,29 +304,8 @@ let format_events ?(format = `Text) events =
       Yojson.Safe.to_string (`List json_events)
   | `Csv ->
       "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
-      ^ String.concat "\n"
-          (List.map
-             (fun e ->
-               let summary = Event.get_summary e in
-               let start = format_datetime (Event.get_start e) in
-               let end_str =
-                 match Event.get_end e with
-                 | Some end_ -> format_datetime end_
-                 | None -> ""
-               in
-               let location =
-                 match Event.get_location e with Some loc -> loc | None -> ""
-               in
-               let cal_id =
-                 match Event.get_collection e with
-                 | Some (Calendar_dir.Collection cal) -> cal
-                 | None -> ""
-               in
-               Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start
-                 end_str location cal_id)
-             events)
+      ^ String.concat "\n" (List.map (format_event ~format:`Csv) events)
   | `Sexp ->
-      (* For S-expressions, we want a list of event S-expressions *)
       "("
       ^ String.concat "\n "
           (List.map (fun e -> format_event ~format:`Sexp e) events)
@@ -239,115 +317,18 @@ let format_instances ?(format = `Text) instances =
   | `Json ->
       let json_instances =
         List.map
-          (fun i ->
-            let e = i.Recur.event in
-            let json = Yojson.Safe.from_string (format_event ~format:`Json e) in
-            match json with
-            | `Assoc fields ->
-                `Assoc
-                  (("start", `String (format_datetime i.Recur.start))
-                  :: ( "end",
-                       match i.Recur.end_ with
-                       | Some e -> `String (format_datetime e)
-                       | None -> `Null )
-                  :: List.filter
-                       (fun (k, _) -> k <> "start" && k <> "end")
-                       fields)
-            | _ -> json)
+          (fun e -> Yojson.Safe.from_string (format_instance ~format:`Json e))
           instances
       in
       Yojson.Safe.to_string (`List json_instances)
   | `Csv ->
       "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
-      ^ String.concat "\n"
-          (List.map
-             (fun i ->
-               let e = i.Recur.event in
-               let summary = Event.get_summary e in
-               let start = format_datetime i.Recur.start in
-               let end_str =
-                 match i.Recur.end_ with
-                 | Some end_ -> format_datetime end_
-                 | None -> ""
-               in
-               let location =
-                 match Event.get_location e with Some loc -> loc | None -> ""
-               in
-               let cal_id =
-                 match Event.get_collection e with
-                 | Some (Calendar_dir.Collection cal) -> cal
-                 | None -> ""
-               in
-               Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start
-                 end_str location cal_id)
-             instances)
+      ^ String.concat "\n" (List.map (format_instance ~format:`Csv) instances)
   | `Sexp ->
-      (* Create a list of instance S-expressions *)
-      let format_instance_sexp i =
-        let e = i.Recur.event in
-        let summary = Event.get_summary e in
-        let start_date, start_time =
-          let date = i.Recur.start in
-          let y, m, d = Ptime.to_date date in
-          let _, ((h, min, s), _) = Ptime.to_date_time date in
-          let cal_date = CalendarLib.Date.make y m d in
-          let dow =
-            match CalendarLib.Date.day_of_week cal_date with
-            | CalendarLib.Date.Mon -> "monday"
-            | CalendarLib.Date.Tue -> "tuesday"
-            | CalendarLib.Date.Wed -> "wednesday"
-            | CalendarLib.Date.Thu -> "thursday"
-            | CalendarLib.Date.Fri -> "friday"
-            | CalendarLib.Date.Sat -> "saturday"
-            | CalendarLib.Date.Sun -> "sunday"
-          in
-          ( Printf.sprintf "(%04d %02d %02d %s)" y m d dow,
-            Printf.sprintf "(%02d %02d %02d)" h min s )
-        in
-        let end_str =
-          match i.Recur.end_ with
-          | Some end_date ->
-              let y, m, d = Ptime.to_date end_date in
-              let _, ((h, min, s), _) = Ptime.to_date_time end_date in
-              let cal_date = CalendarLib.Date.make y m d in
-              let dow =
-                match CalendarLib.Date.day_of_week cal_date with
-                | CalendarLib.Date.Mon -> "monday"
-                | CalendarLib.Date.Tue -> "tuesday"
-                | CalendarLib.Date.Wed -> "wednesday"
-                | CalendarLib.Date.Thu -> "thursday"
-                | CalendarLib.Date.Fri -> "friday"
-                | CalendarLib.Date.Sat -> "saturday"
-                | CalendarLib.Date.Sun -> "sunday"
-              in
-              Printf.sprintf "((%04d %02d %02d %s) (%02d %02d %02d))" y m d dow
-                h min s
-          | None -> "nil"
-        in
-        let location =
-          match Event.get_location e with
-          | Some loc -> Printf.sprintf "\"%s\"" (String.escaped loc)
-          | None -> "nil"
-        in
-        let description =
-          match Event.get_description e with
-          | Some desc -> Printf.sprintf "\"%s\"" (String.escaped desc)
-          | None -> "nil"
-        in
-        let calendar =
-          match Event.get_collection e with
-          | Some (Calendar_dir.Collection cal) ->
-              Printf.sprintf "\"%s\"" (String.escaped cal)
-          | None -> "nil"
-        in
-        let id = Event.get_id e in
-        Printf.sprintf
-          "((:id \"%s\" :summary \"%s\" :start (%s %s) :end %s :location %s \
-           :description %s :calendar %s))"
-          (String.escaped id) (String.escaped summary) start_date start_time
-          end_str location description calendar
-      in
-      "(" ^ String.concat "\n " (List.map format_instance_sexp instances) ^ ")"
+      "("
+      ^ String.concat "\n "
+          (List.map (fun e -> format_instance ~format:`Sexp e) instances)
+      ^ ")"
   | _ ->
       String.concat "\n"
-        (List.map (fun i -> format_instance ~format i) instances)
+        (List.map (fun e -> format_instance ~format e) instances)

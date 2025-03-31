@@ -1,9 +1,10 @@
 * DONE list/search events
+* DONE add/remove events
+** TODO support more options in creating events, e.g. event duration
+* DONE edit events
 * TODO diagnose events failing to parse
-* TODO timezones and daylight saving
-* TODO add/remove events
-* TODO edit events
-will need to modify the event to ICS code to retain fields we don't use
+* TODO timezones
+timerer
 * TODO [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
 * TODO CalDAV syncing
 Currently, you can use [[https://github.com/pimutils/vdirsyncer][vdirsyncer]]

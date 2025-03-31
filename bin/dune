@@ -14,4 +14,12 @@
   ptime.clock.os
   eio
   eio_main)
- (modules main list_cmd search_cmd query_args))
+ (modules
+  main
+  list_cmd
+  search_cmd
+  query_args
+  add_cmd
+  edit_cmd
+  delete_cmd
+  show_cmd))

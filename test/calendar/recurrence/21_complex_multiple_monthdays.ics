@@ -6,7 +6,7 @@ UID:complex-monthdays-recur@caledonia.test
 DTSTAMP:20250329T000000Z
 DTSTART:20250501T140000Z
 DTEND:20250501T150000Z
-SUMMARY:Monthly on 1st, 15th, Last Day
+SUMMARY:Monthly on 1st\, 15th\, Last Day
 DESCRIPTION:Monthly event occurring on 1st, 15th, and last day of each month
 RRULE:FREQ=MONTHLY;BYMONTHDAY=1,15,-1
 END:VEVENT

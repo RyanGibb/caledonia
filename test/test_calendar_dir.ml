@@ -18,14 +18,10 @@ let test_list_collections ~fs () =
         "Should find two collections" 2 (List.length collections);
       Alcotest.(check bool)
         "example should be in the list" true
-        (List.exists
-           (fun c -> c = Calendar_dir.Collection "example")
-           collections);
+        (List.exists (fun c -> c = Collection.Col "example") collections);
       Alcotest.(check bool)
         "recurrence should be in the list" true
-        (List.exists
-           (fun c -> c = Calendar_dir.Collection "recurrence")
-           collections);
+        (List.exists (fun c -> c = Collection.Col "recurrence") collections);
       ()
 
 let test_get_collection ~fs () =
@@ -36,8 +32,7 @@ let test_get_collection ~fs () =
         Alcotest.fail ("Calendar directory creation failed: " ^ msg)
   in
   let result =
-    Calendar_dir.get_collection ~fs calendar_dir
-      (Calendar_dir.Collection "example")
+    Calendar_dir.get_collection ~fs calendar_dir (Collection.Col "example")
   in
   match result with
   | Ok _ -> Alcotest.(check pass) "Should find example collection" () ()
@@ -57,13 +52,11 @@ let test_get_collections ~fs () =
         "Should find two collections" 2 (List.length collections);
       Alcotest.(check bool)
         "example should be in the results" true
-        (List.exists
-           (fun (id, _) -> id = Calendar_dir.Collection "example")
-           collections);
+        (List.exists (fun (id, _) -> id = Collection.Col "example") collections);
       Alcotest.(check bool)
         "recurrence should be in the results" true
         (List.exists
-           (fun (id, _) -> id = Calendar_dir.Collection "recurrence")
+           (fun (id, _) -> id = Collection.Col "recurrence")
            collections);
       ()
   | Error e ->
