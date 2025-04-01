@@ -15,5 +15,5 @@ The project includes a test suite that can be ran with `dune runtest`.
 
 ## Thanks
 
-To [Patrick](https://patrick.sirref.org/) for suggesting the name, and all the developers of the dependencies used, especially [icalendar](https://github.com/robur-coop/icalendar) and [calendar](https://github.com/ocaml-community/calendar).
+To [Patrick](https://patrick.sirref.org/) for suggesting the name, and all the developers of the dependencies used, especially [icalendar](https://github.com/robur-coop/icalendar) and [timere](https://github.com/daypack-dev/timere).
 

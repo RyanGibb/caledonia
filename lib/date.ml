@@ -1,90 +1,88 @@
-let calendar_to_ptime date =
-  let open CalendarLib in
-  let year = Calendar.year date in
-  let month = Date.int_of_month (Calendar.month date) in
-  let day = Calendar.day_of_month date in
-  let time = Calendar.to_time date in
-  let hour = Time.hour time in
-  let minute = Time.minute time in
-  let second = Time.second time in
-  match
-    Ptime.of_date_time ((year, month, day), ((hour, minute, second), 0))
-  with
-  | Some t -> t
-  | None -> failwith "Invalid date conversion from Calendar to Ptime"
+open Result
 
-let ptime_to_calendar ptime =
-  let (year, month, day), ((hour, minute, second), _) =
-    Ptime.to_date_time ptime
-  in
-  let open CalendarLib in
-  let date = Date.make year month day in
-  let time = Time.make hour minute second in
-  Calendar.create date time
+let timedesc_to_ptime dt =
+  match Timedesc.to_timestamp_single dt |> Timedesc.Utils.ptime_of_timestamp with
+  | Some t -> t
+  | None -> failwith "Invalid date conversion from Timedesc to Ptime"
+
+let ptime_to_timedesc ptime =
+  let ts = Timedesc.Utils.timestamp_of_ptime ptime in
+  match Timedesc.of_timestamp ts with
+  | Some dt -> dt
+  | None -> failwith "Invalid date conversion from Ptime to Timedesc"
 
 let get_today =
   ref (fun () ->
-      let today_date = CalendarLib.Date.today () in
-      let midnight = CalendarLib.Time.make 0 0 0 in
-      let today_with_midnight =
-        CalendarLib.Calendar.create today_date midnight
-      in
-      calendar_to_ptime today_with_midnight)
+      let now = Timedesc.now () in
+      let date = Timedesc.date now in
+      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+      let dt = Timedesc.of_date_and_time_exn date midnight in
+      timedesc_to_ptime dt)
 
 (* Convert a midnight timestamp to end-of-day (23:59:59) *)
 let to_end_of_day date =
-  let cal_date = ptime_to_calendar date in
-  let date_only = CalendarLib.Calendar.to_date cal_date in
-  let end_of_day_time = CalendarLib.Time.make 23 59 59 in
-  let end_of_day = CalendarLib.Calendar.create date_only end_of_day_time in
-  calendar_to_ptime end_of_day
+  let dt = ptime_to_timedesc date in
+  let date = Timedesc.date dt in
+  let end_of_day_time = Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 () in
+  let end_of_day = Timedesc.of_date_and_time_exn date end_of_day_time in
+  timedesc_to_ptime end_of_day
 
 let add_days date days =
-  let cal_date = ptime_to_calendar date in
-  let period = CalendarLib.Calendar.Period.day days in
-  let new_date = CalendarLib.Calendar.add cal_date period in
-  calendar_to_ptime new_date
+  let dt = ptime_to_timedesc date in
+  let date = Timedesc.date dt in
+  let new_date = Timedesc.Date.add ~days date in
+  let time = Timedesc.time dt in
+  let new_dt = Timedesc.of_date_and_time_exn new_date time in
+  timedesc_to_ptime new_dt
 
 let add_weeks date weeks =
-  let cal_date = ptime_to_calendar date in
-  let period = CalendarLib.Calendar.Period.week weeks in
-  let new_date = CalendarLib.Calendar.add cal_date period in
-  calendar_to_ptime new_date
+  add_days date (weeks * 7)
 
 let add_months date months =
-  let cal_date = ptime_to_calendar date in
-  let period = CalendarLib.Calendar.Period.month months in
-  let new_date = CalendarLib.Calendar.add cal_date period in
-  calendar_to_ptime new_date
+  let dt = ptime_to_timedesc date in
+  let old_ym = Timedesc.ym dt in
+  let year = Timedesc.Ym.year old_ym in
+  let month = Timedesc.Ym.month old_ym in
+  let day = Timedesc.day dt in
+  
+  (* Calculate new year and month *)
+  let total_month = (year * 12) + month - 1 + months in
+  let new_year = total_month / 12 in
+  let new_month = (total_month mod 12) + 1 in
+  
+  (* Try to create new date, handling end of month cases properly *)
+  let rec adjust_day d =
+    match Timedesc.Date.Ymd.make ~year:new_year ~month:new_month ~day:d with
+    | Ok new_date -> 
+        let time = Timedesc.time dt in
+        let new_dt = Timedesc.of_date_and_time_exn new_date time in
+        timedesc_to_ptime new_dt
+    | Error _ -> 
+        if d > 1 then adjust_day (d - 1)
+        else failwith "Invalid date after adding months"
+  in
+  adjust_day day
 
 let add_years date years =
-  let cal_date = ptime_to_calendar date in
-  let period = CalendarLib.Calendar.Period.year years in
-  let new_date = CalendarLib.Calendar.add cal_date period in
-  calendar_to_ptime new_date
+  add_months date (years * 12)
 
 let get_start_of_week date =
-  let cal_date = ptime_to_calendar date in
-  let day_of_week = CalendarLib.Calendar.day_of_week cal_date in
+  let dt = ptime_to_timedesc date in
+  let day_of_week = Timedesc.weekday dt in
   let days_to_subtract =
     match day_of_week with
-    | CalendarLib.Date.Mon -> 0
-    | CalendarLib.Date.Tue -> 1
-    | CalendarLib.Date.Wed -> 2
-    | CalendarLib.Date.Thu -> 3
-    | CalendarLib.Date.Fri -> 4
-    | CalendarLib.Date.Sat -> 5
-    | CalendarLib.Date.Sun -> 6
+    | `Mon -> 0
+    | `Tue -> 1
+    | `Wed -> 2
+    | `Thu -> 3
+    | `Fri -> 4
+    | `Sat -> 5
+    | `Sun -> 6
   in
-  let monday =
-    CalendarLib.Calendar.add cal_date
-      (CalendarLib.Calendar.Period.day (-days_to_subtract))
-  in
-  (* Extract the date part and create a new calendar with midnight time *)
-  let monday_date = CalendarLib.Calendar.to_date monday in
-  let midnight = CalendarLib.Time.make 0 0 0 in
-  let monday_at_midnight = CalendarLib.Calendar.create monday_date midnight in
-  calendar_to_ptime monday_at_midnight
+  let monday_date = Timedesc.Date.sub ~days:days_to_subtract (Timedesc.date dt) in
+  let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+  let monday_with_midnight = Timedesc.of_date_and_time_exn monday_date midnight in
+  timedesc_to_ptime monday_with_midnight
 
 let get_start_of_current_week () = get_start_of_week (!get_today ())
 let get_start_of_next_week () = add_days (get_start_of_current_week ()) 7
@@ -93,39 +91,46 @@ let get_end_of_current_week () = get_end_of_week (!get_today ())
 let get_end_of_next_week () = get_end_of_week (get_start_of_next_week ())
 
 let get_start_of_month date =
-  let cal_date = ptime_to_calendar date in
-  (* Extract year and month from calendar date *)
-  let year = CalendarLib.Calendar.year cal_date in
-  let month = CalendarLib.Calendar.month cal_date in
+  let dt = ptime_to_timedesc date in
+  let year = Timedesc.year dt in
+  let month = Timedesc.month dt in
+  
   (* Create a date for the first of the month *)
-  let month_int = CalendarLib.Date.int_of_month month in
-  let first_day = CalendarLib.Date.make year month_int 1 in
-  let midnight = CalendarLib.Time.make 0 0 0 in
-  let first_of_month = CalendarLib.Calendar.create first_day midnight in
-  calendar_to_ptime first_of_month
+  match Timedesc.Date.Ymd.make ~year ~month ~day:1 with
+  | Ok first_day ->
+      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+      let first_of_month = Timedesc.of_date_and_time_exn first_day midnight in
+      timedesc_to_ptime first_of_month
+  | Error _ -> failwith "Invalid date for start of month"
 
 let get_start_of_current_month () = get_start_of_month (!get_today ())
 let get_start_of_next_month () = add_months (get_start_of_current_month ()) 1
 
 let get_end_of_month date =
-  let cal_date = ptime_to_calendar date in
-  let year = CalendarLib.Calendar.year cal_date in
-  let month = CalendarLib.Calendar.month cal_date in
-  let month_int = CalendarLib.Date.int_of_month month in
-  (* Create a calendar for the first of next month *)
-  let next_month_int = if month_int == 12 then 1 else month_int + 1 in
-  let next_month_year = if month_int == 12 then year + 1 else year in
-  let first_of_next_month =
-    CalendarLib.Date.make next_month_year next_month_int 1
-  in
-  let midnight = CalendarLib.Time.make 0 0 0 in
-  let first_of_next_month_cal =
-    CalendarLib.Calendar.create first_of_next_month midnight
-  in
-  (* Subtract one second to get the end of the current month *)
-  let period = CalendarLib.Calendar.Period.second (-1) in
-  let last_of_month = CalendarLib.Calendar.add first_of_next_month_cal period in
-  calendar_to_ptime last_of_month
+  let dt = ptime_to_timedesc date in
+  let year = Timedesc.year dt in
+  let month = Timedesc.month dt in
+  
+  (* Determine next month and year *)
+  let next_month_int = if month == 12 then 1 else month + 1 in
+  let next_month_year = if month == 12 then year + 1 else year in
+  
+  (* Create a date for the first of next month *)
+  match Timedesc.Date.Ymd.make ~year:next_month_year ~month:next_month_int ~day:1 with
+  | Ok first_of_next_month ->
+      (* Create the timestamp and subtract 1 second *)
+      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+      let first_of_next_month_dt = Timedesc.of_date_and_time_exn first_of_next_month midnight in
+      let one_second = Timedesc.Span.For_human.make_exn ~seconds:1 () in
+      let end_of_month_ts = 
+        match Timedesc.to_timestamp first_of_next_month_dt with
+        | `Single ts -> Timedesc.Span.sub ts one_second
+        | `Ambiguous (ts, _) -> Timedesc.Span.sub ts one_second
+      in
+      (match Timedesc.of_timestamp end_of_month_ts with
+      | Some end_of_month -> timedesc_to_ptime end_of_month
+      | None -> failwith "Invalid timestamp for end of month")
+  | Error _ -> failwith "Invalid date for end of month"
 
 let get_end_of_current_month () = get_end_of_month (!get_today ())
 let get_end_of_next_month () = get_end_of_month (get_start_of_next_month ())
@@ -196,9 +201,12 @@ let parse_date expr parameter =
           int_of_string
             (Re.Pcre.get_substring (Re.Pcre.exec ~rex:iso_date_regex expr) 3)
         in
-        match Ptime.of_date_time ((year, month, day), ((0, 0, 0), 0)) with
-        | Some date -> Ok date
-        | None -> Error (`Msg (Printf.sprintf "Invalid date: %s" expr))
+        match Timedesc.Date.Ymd.make ~year ~month ~day with
+        | Ok date ->
+            let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+            let dt = Timedesc.of_date_and_time_exn date midnight in
+            Ok (timedesc_to_ptime dt)
+        | Error _ -> Error (`Msg (Printf.sprintf "Invalid date: %s" expr))
         (* Try to parse as relative expression +Nd, -Nd, etc. *)
       else if Re.Pcre.pmatch ~rex:relative_regex expr then
         let sign =
@@ -253,14 +261,21 @@ let parse_time str =
     Error
       (`Msg (Printf.sprintf "Error parsing time: %s" (Printexc.to_string e)))
 
-let parse_date_time ~date ~time paramter =
-  let* date = parse_date date paramter in
-  let* time = parse_time time in
-  let y, m, d = Ptime.to_date date in
-  let h, min, s = time in
-  match Ptime.of_date_time ((y, m, d), ((h, min, s), 0)) with
-  | Some t -> Ok t
-  | None -> Error (`Msg "Invalid date-time combination")
+let parse_date_time ~date ~time parameter =
+  let* date_ptime = parse_date date parameter in
+  let* (h, min, s) = parse_time time in
+  
+  let dt = ptime_to_timedesc date_ptime in
+  let date_part = Timedesc.date dt in
+  
+  (* Create time *)
+  match Timedesc.Time.make ~hour:h ~minute:min ~second:s () with
+  | Ok time_part ->
+      (* Combine date and time *)
+      (match Timedesc.of_date_and_time date_part time_part with
+      | Ok combined -> Ok (timedesc_to_ptime combined)
+      | Error _ -> Error (`Msg "Invalid date-time combination"))
+  | Error _ -> Error (`Msg "Invalid time for date-time combination")
 
 let parse_date_time_opt ~date ?time parameter =
   match time with

@@ -5,7 +5,8 @@
   icalendar
   ptime
   ptime.clock.os
-  calendar
+  timedesc
+  timere
   fmt
   logs
   re

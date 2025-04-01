@@ -1,17 +1,25 @@
 type format = [ `Text | `Json | `Csv | `Ics | `Entries | `Sexp ]
 
+let ptime_to_timedesc ptime =
+  let ts = Timedesc.Utils.timestamp_of_ptime ptime in
+  match Timedesc.of_timestamp ts with
+  | Some dt -> dt
+  | None -> failwith "Invalid date conversion from Ptime to Timedesc"
+
 let format_date date =
-  let y, m, d = Ptime.to_date date in
-  let cal_date = CalendarLib.Date.make y m d in
+  let dt = ptime_to_timedesc date in
+  let y = Timedesc.year dt in
+  let m = Timedesc.month dt in
+  let d = Timedesc.day dt in
   let weekday =
-    match CalendarLib.Date.day_of_week cal_date with
-    | CalendarLib.Date.Mon -> "Mon"
-    | CalendarLib.Date.Tue -> "Tue"
-    | CalendarLib.Date.Wed -> "Wed"
-    | CalendarLib.Date.Thu -> "Thu"
-    | CalendarLib.Date.Fri -> "Fri"
-    | CalendarLib.Date.Sat -> "Sat"
-    | CalendarLib.Date.Sun -> "Sun"
+    match Timedesc.weekday dt with
+    | `Mon -> "Mon"
+    | `Tue -> "Tue"
+    | `Wed -> "Wed"
+    | `Thu -> "Thu"
+    | `Fri -> "Fri"
+    | `Sat -> "Sat"
+    | `Sun -> "Sun"
   in
   Printf.sprintf "%04d-%02d-%02d %s" y m d weekday
 
@@ -227,19 +235,22 @@ let format_alt ~format ~start ~end_ event =
         match get_summary event with Some summary -> summary | None -> ""
       in
       let start_date, start_time =
-        let date = start in
-        let y, m, d = Ptime.to_date date in
-        let _, ((h, min, s), _) = Ptime.to_date_time date in
-        let cal_date = CalendarLib.Date.make y m d in
+        let dt = ptime_to_timedesc start in
+        let y = Timedesc.year dt in
+        let m = Timedesc.month dt in
+        let d = Timedesc.day dt in
+        let h = Timedesc.hour dt in
+        let min = Timedesc.minute dt in
+        let s = Timedesc.second dt in
         let dow =
-          match CalendarLib.Date.day_of_week cal_date with
-          | CalendarLib.Date.Mon -> "monday"
-          | CalendarLib.Date.Tue -> "tuesday"
-          | CalendarLib.Date.Wed -> "wednesday"
-          | CalendarLib.Date.Thu -> "thursday"
-          | CalendarLib.Date.Fri -> "friday"
-          | CalendarLib.Date.Sat -> "saturday"
-          | CalendarLib.Date.Sun -> "sunday"
+          match Timedesc.weekday dt with
+          | `Mon -> "monday"
+          | `Tue -> "tuesday"
+          | `Wed -> "wednesday"
+          | `Thu -> "thursday"
+          | `Fri -> "friday"
+          | `Sat -> "saturday"
+          | `Sun -> "sunday"
         in
         ( Printf.sprintf "(%04d %02d %02d %s)" y m d dow,
           Printf.sprintf "(%02d %02d %02d)" h min s )
@@ -247,18 +258,22 @@ let format_alt ~format ~start ~end_ event =
       let end_str =
         match end_ with
         | Some end_date ->
-            let y, m, d = Ptime.to_date end_date in
-            let _, ((h, min, s), _) = Ptime.to_date_time end_date in
-            let cal_date = CalendarLib.Date.make y m d in
+            let dt = ptime_to_timedesc end_date in
+            let y = Timedesc.year dt in
+            let m = Timedesc.month dt in
+            let d = Timedesc.day dt in
+            let h = Timedesc.hour dt in
+            let min = Timedesc.minute dt in
+            let s = Timedesc.second dt in
             let dow =
-              match CalendarLib.Date.day_of_week cal_date with
-              | CalendarLib.Date.Mon -> "monday"
-              | CalendarLib.Date.Tue -> "tuesday"
-              | CalendarLib.Date.Wed -> "wednesday"
-              | CalendarLib.Date.Thu -> "thursday"
-              | CalendarLib.Date.Fri -> "friday"
-              | CalendarLib.Date.Sat -> "saturday"
-              | CalendarLib.Date.Sun -> "sunday"
+              match Timedesc.weekday dt with
+              | `Mon -> "monday"
+              | `Tue -> "tuesday"
+              | `Wed -> "wednesday"
+              | `Thu -> "thursday"
+              | `Fri -> "friday"
+              | `Sat -> "saturday"
+              | `Sun -> "sunday"
             in
             Printf.sprintf "((%04d %02d %02d %s) (%02d %02d %02d))" y m d dow h
               min s
