@@ -72,6 +72,112 @@ let timezone_arg =
     & opt (some string) None
     & info [ "timezone"; "z" ] ~docv:"TIMEZONE" ~doc)
 
+let sort_field_enum =
+  [
+    ("start", `Start);
+    ("end", `End);
+    ("summary", `Summary);
+    ("location", `Location);
+    ("calendar", `Calendar);
+  ]
+
+type sort_spec = {
+  field : [ `Start | `End | `Summary | `Location | `Calendar ];
+  descending : bool;
+}
+
+let parse_sort_spec str =
+  let ( let* ) = Result.bind in
+  let parts = String.split_on_char ':' str in
+  match parts with
+  | [] -> Error (`Msg "Empty sort specification")
+  | field_str :: order_opt -> (
+      let* descending =
+        match order_opt with
+        | [ "desc" ] | [ "descending" ] -> Ok true
+        | [ "asc" ] | [ "ascending" ] -> Ok false
+        | [] -> Ok false (* Default to ascending *)
+        | _ -> Error (`Msg ("Invalid sort order in: " ^ str))
+      in
+      match List.assoc_opt field_str sort_field_enum with
+      | Some field -> Ok { field; descending }
+      | None ->
+          Error
+            (`Msg
+               (Printf.sprintf "Invalid sort field '%s'. Valid options are: %s"
+                  field_str
+                  (String.concat ", " (List.map fst sort_field_enum)))))
+
+let sort_converter =
+  let parse s = parse_sort_spec s in
+  let print ppf spec =
+    let field_str =
+      List.find_map
+        (fun (name, field) -> if field = spec.field then Some name else None)
+        sort_field_enum
+    in
+    let order_str = if spec.descending then ":desc" else "" in
+    Fmt.pf ppf "%s%s" (Option.value field_str ~default:"unknown") order_str
+  in
+  Arg.conv (parse, print)
+
+let default_sort = { field = `Start; descending = false }
+
+let sort_arg =
+  let doc =
+    "Sorting specifications in the format 'field[:order]' where field is one \
+     of 'start', 'end', 'summary', 'location', 'calendar' and order is one of \
+     'asc'/'ascending' or 'desc'/'descending' (default: asc). Multiple sort \
+     specs can be provided for multi-level sorting. When no sort is specified, \
+     defaults to sorting by start time ascending."
+  in
+  Arg.(
+    value
+    & opt_all sort_converter [ default_sort ]
+    & info [ "sort"; "s" ] ~docv:"SORT" ~doc)
+
+(* Convert sort specs to an instance comparator *)
+let create_instance_comparator sort_specs =
+  match sort_specs with
+  | [] -> Recur.Instance.by_start
+  | [ spec ] ->
+      let comp =
+        match spec.field with
+        | `Start -> Recur.Instance.by_start
+        | `End -> Recur.Instance.by_end
+        | `Summary -> Recur.Instance.by_event Event.by_summary
+        | `Location -> Recur.Instance.by_event Event.by_location
+        | `Calendar -> Recur.Instance.by_event Event.by_collection
+      in
+      if spec.descending then Recur.Instance.descending comp else comp
+  | specs ->
+      (* Chain multiple sort specs together *)
+      List.fold_right
+        (fun spec acc ->
+          let comp =
+            match spec.field with
+            | `Start -> Recur.Instance.by_start
+            | `End -> Recur.Instance.by_end
+            | `Summary -> Recur.Instance.by_event Event.by_summary
+            | `Location -> Recur.Instance.by_event Event.by_location
+            | `Calendar -> Recur.Instance.by_event Event.by_collection
+          in
+          let comp =
+            if spec.descending then Recur.Instance.descending comp else comp
+          in
+          Recur.Instance.chain comp acc)
+        (List.tl specs)
+        (let spec = List.hd specs in
+         let comp =
+           match spec.field with
+           | `Start -> Recur.Instance.by_start
+           | `End -> Recur.Instance.by_end
+           | `Summary -> Recur.Instance.by_event Event.by_summary
+           | `Location -> Recur.Instance.by_event Event.by_location
+           | `Calendar -> Recur.Instance.by_event Event.by_collection
+         in
+         if spec.descending then Recur.Instance.descending comp else comp)
+
 let date_format_manpage_entries =
   [
     `S "DATE FORMATS";

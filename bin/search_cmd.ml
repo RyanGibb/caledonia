@@ -4,7 +4,7 @@ open Query_args
 
 let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
     ~location ~format ~today ~tomorrow ~week ~month ~recurring ~non_recurring
-    ?timezone ~fs calendar_dir =
+    ?timezone ~sort ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let filters = ref [] in
   let tz = Query_args.parse_timezone ~timezone in
@@ -68,11 +68,14 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
   if recurring then filters := Query.recurring_only () :: !filters;
   if non_recurring then filters := Query.non_recurring_only () :: !filters;
   let filter = Query.and_filter !filters in
+  let comparator = Query_args.create_instance_comparator sort in
   let* results =
-    Query.query ~fs calendar_dir ~filter ~from ~to_ ?limit:count ()
+    Query.query ~fs calendar_dir ~filter ~from ~to_ ~comparator ?limit:count ()
   in
   if results = [] then print_endline "No events found."
-  else print_endline (Format.format_instances ~fs ~calendar_dir ~format results);
+  else
+    print_endline
+      (Format.format_instances ~tz ~fs ~calendar_dir ~format results);
   Ok ()
 
 let query_text_arg =
@@ -101,11 +104,11 @@ let non_recurring_arg =
 
 let cmd ~fs calendar_dir =
   let run query_text from_str to_str calendar count format summary description
-      location today tomorrow week month recurring non_recurring timezone =
+      location today tomorrow week month recurring non_recurring timezone sort =
     match
       run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
         ~location ~format ~today ~tomorrow ~week ~month ~recurring
-        ~non_recurring ?timezone ~fs calendar_dir
+        ~non_recurring ?timezone ~sort ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -117,7 +120,7 @@ let cmd ~fs calendar_dir =
       const run $ query_text_arg $ from_arg $ to_arg $ calendar_arg $ count_arg
       $ format_arg $ summary_arg $ description_arg $ location_arg $ today_arg
       $ tomorrow_arg $ week_arg $ month_arg $ recurring_arg $ non_recurring_arg
-      $ timezone_arg)
+      $ timezone_arg $ sort_arg)
   in
   let doc = "Search calendar events for specific text" in
   let man =
@@ -138,6 +141,7 @@ let cmd ~fs calendar_dir =
       `P
         "You can limit results to only recurring or non-recurring events using \
          the --recurring or --non-recurring flags.";
+      `P "Use the --sort option to control the sorting of results.";
       `P
         "The search text is optional if you're using other filters. For \
          example, you can find all recurring events without specifying any \
@@ -174,6 +178,12 @@ let cmd ~fs calendar_dir =
         `I
           ( "Find all events in a specific calendar:",
             "caled search --calendar work" );
+        `I
+          ( "Sort results by location and then summary:",
+            "caled search --sort location --sort summary" );
+        `I
+          ( "Sort results by end time in descending order:",
+            "caled search --sort end:desc" );
       ]
   in
   let exit_info =

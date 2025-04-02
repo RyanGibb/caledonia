@@ -17,6 +17,10 @@ module Instance = struct
 
   let by_event event_comp i1 i2 = event_comp i1.event i2.event
   let descending comp i1 i2 = -1 * comp i1 i2
+
+  let chain comp1 comp2 i1 i2 =
+    let result = comp1 i1 i2 in
+    if result <> 0 then result else comp2 i1 i2
 end
 
 let clone_with_time original start =

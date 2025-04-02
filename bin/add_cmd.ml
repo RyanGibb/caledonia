@@ -59,22 +59,26 @@ let cmd ~fs calendar_dir =
     @ date_format_manpage_entries
     @ [
         `S Manpage.s_examples;
-        `I ("Add a event for today:", "caled add \"Meeting\" -d today -t 14:00");
+        `I
+          ( "Add a event for today:",
+            "caled add \"Meeting\" --date today --time 14:00" );
         `I
           ( "Add an event with a specific date and time:",
-            "caled add \"Dentist Appointment\" -d 2025-04-15 -t 10:30" );
+            "caled add \"Dentist Appointment\" --date 2025-04-15 --time 10:30"
+          );
         `I
           ( "Add an event with an end time:",
-            "caled add \"Conference\" -d 2025-05-20 -t 09:00 -e 2025-05-22 -T \
-             17:00" );
+            "caled add \"Conference\" --date 2025-05-20 --time 09:00 \
+             --end-date 2025-05-22 --end-time 17:00" );
         `I
           ( "Add an event with location and description:",
-            "caled add \"Lunch with Bob\" -d 2025-04-02 -t 12:30 -l \"Pasta \
-             Restaurant\" -D \"Discuss project plans\"" );
+            "caled add \"Lunch with Bob\" --date 2025-04-02 --time 12:30 \
+             --location \"Pasta Restaurant\" --description \"Discuss project \
+             plans\"" );
         `I
           ( "Add an event to a specific calendar:",
-            "caled add \"Work Meeting\" -d 2025-04-03 -t 15:00 --calendar work"
-          );
+            "caled add \"Work Meeting\" --date 2025-04-03 --time 15:00 \
+             --calendar work" );
         `S "RECURRENCE";
         `P
           "Recurrence rule in iCalendar RFC5545 format. The FREQ part is \

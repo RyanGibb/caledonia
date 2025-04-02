@@ -227,3 +227,7 @@ let by_collection e1 e2 =
   | Collection.Col c1, Collection.Col c2 -> String.compare c1 c2
 
 let descending comp e1 e2 = -1 * comp e1 e2
+
+let chain comp1 comp2 e1 e2 =
+  let result = comp1 e1 e2 in
+  if result <> 0 then result else comp2 e1 e2

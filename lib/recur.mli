@@ -11,14 +11,18 @@ module Instance : sig
   (** Compare instances by start time, earlier times come first *)
 
   val by_end : comparator
-  (** Compare instances by end time, earlier times come first.
-      Instances with end times come after those without *)
+  (** Compare instances by end time, earlier times come first. Instances with
+      end times come after those without *)
 
   val by_event : Event.comparator -> comparator
   (** Apply an event comparator to instances *)
 
   val descending : comparator -> comparator
   (** Reverse the order of a comparator *)
+
+  val chain : comparator -> comparator -> comparator
+  (** Chain two comparators together, using the second one as a tiebreaker when
+      the first one returns equality (0) *)
 end
 
 val expand_event :

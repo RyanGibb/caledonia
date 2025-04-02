@@ -3,7 +3,7 @@ open Caledonia_lib
 open Query_args
 
 let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
-    ?timezone ~fs calendar_dir =
+    ?timezone ~sort ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let tz = Query_args.parse_timezone ~timezone in
   let* from, to_ =
@@ -55,8 +55,9 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
         Some (Query.in_collections [ Collection.Col collection_id ])
     | None -> None
   in
+  let comparator = Query_args.create_instance_comparator sort in
   let* results =
-    Query.query ~fs calendar_dir ?filter ~from ~to_ ?limit:count ()
+    Query.query ~fs calendar_dir ?filter ~from ~to_ ~comparator ?limit:count ()
   in
   if results = [] then print_endline "No events found."
   else
@@ -66,10 +67,10 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
 
 let cmd ~fs calendar_dir =
   let run from_str to_str calendar count format today tomorrow week month
-      timezone =
+      timezone sort =
     match
       run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week
-        ~month ?timezone ~fs calendar_dir
+        ~month ?timezone ~sort ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -79,7 +80,8 @@ let cmd ~fs calendar_dir =
   let term =
     Term.(
       const run $ from_arg $ to_arg $ calendar_arg $ count_arg $ format_arg
-      $ today_arg $ tomorrow_arg $ week_arg $ month_arg $ timezone_arg)
+      $ today_arg $ tomorrow_arg $ week_arg $ month_arg $ timezone_arg
+      $ sort_arg)
   in
   let doc = "List calendar events" in
   let man =
@@ -89,6 +91,7 @@ let cmd ~fs calendar_dir =
       `P "By default, events from today to one month from today are shown.";
       `P "You can use date flags to show events for a specific time period.";
       `P "You can also filter events by calendar using the --calendar flag.";
+      `P "Use the --sort option to control the sorting of results.";
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries
@@ -105,6 +108,12 @@ let cmd ~fs calendar_dir =
           ("List events from a specific calendar:", "caled list --calendar work");
         `I ("List events in JSON format:", "caled list --format json");
         `I ("Limit the number of events shown:", "caled list --count 5");
+        `I
+          ( "Sort by multiple fields (start time and summary):",
+            "caled list --sort start --sort summary" );
+        `I
+          ( "Sort by calendar name in descending order:",
+            "caled list --sort calendar:desc" );
       ]
   in
   let exit_info =

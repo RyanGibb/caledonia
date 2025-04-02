@@ -97,3 +97,7 @@ val by_collection : comparator
 
 val descending : comparator -> comparator
 (** Reverse the order of a comparator *)
+
+val chain : comparator -> comparator -> comparator
+(** Chain two comparators together, using the second one as a tiebreaker when
+    the first one returns equality (0) *)
