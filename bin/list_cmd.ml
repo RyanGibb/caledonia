@@ -59,7 +59,9 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
     Query.query ~fs calendar_dir ?filter ~from ~to_ ?limit:count ()
   in
   if results = [] then print_endline "No events found."
-  else print_endline (Format.format_instances ~format ~tz results);
+  else
+    print_endline
+      (Format.format_instances ~fs ~calendar_dir ~format ~tz results);
   Ok ()
 
 let cmd ~fs calendar_dir =

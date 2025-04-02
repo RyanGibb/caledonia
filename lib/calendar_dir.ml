@@ -255,3 +255,5 @@ let delete_event ~fs calendar_dir event =
       | None -> [])
       calendar_dir.collections;
   Ok ()
+
+let get_path t = t.path

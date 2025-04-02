@@ -51,3 +51,5 @@ val delete_event :
   t ->
   Event.t ->
   (unit, [> `Msg of string ]) result
+
+val get_path : t -> string

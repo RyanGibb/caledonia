@@ -72,7 +72,7 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
     Query.query ~fs calendar_dir ~filter ~from ~to_ ?limit:count ()
   in
   if results = [] then print_endline "No events found."
-  else print_endline (Format.format_instances ~format results);
+  else print_endline (Format.format_instances ~fs ~calendar_dir ~format results);
   Ok ()
 
 let query_text_arg =
