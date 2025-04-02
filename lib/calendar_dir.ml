@@ -48,9 +48,7 @@ let load_events collection collection_path file_name =
   let file = Eio.Path.(collection_path / file_name) in
   let _, file_path = file in
   match Filename.check_suffix file_name ".ics" with
-  | false ->
-      Printf.eprintf "Skipping non ics file %s\n%!" file_path;
-      []
+  | false -> []
   | true -> (
       try
         let content = Eio.Path.load file in

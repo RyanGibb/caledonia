@@ -1,13 +1,7 @@
-type format = [ `Text | `Json | `Csv | `Ics | `Entries | `Sexp ]
+type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
-let ptime_to_timedesc ptime =
-  let ts = Timedesc.Utils.timestamp_of_ptime ptime in
-  match Timedesc.of_timestamp ts with
-  | Some dt -> dt
-  | None -> failwith "Invalid date conversion from Ptime to Timedesc"
-
-let format_date date =
-  let dt = ptime_to_timedesc date in
+let format_date ?tz date =
+  let dt = Date.ptime_to_timedesc ?tz date in
   let y = Timedesc.year dt in
   let m = Timedesc.month dt in
   let d = Timedesc.day dt in
@@ -23,12 +17,19 @@ let format_date date =
   in
   Printf.sprintf "%04d-%02d-%02d %s" y m d weekday
 
-let format_time date =
-  let _, ((h, m, _), _) = Ptime.to_date_time date in
+let format_time ?tz date =
+  let dt = Date.ptime_to_timedesc ?tz date in
+  let h = Timedesc.hour dt in
+  let m = Timedesc.minute dt in
   Printf.sprintf "%02d:%02d" h m
 
-let format_datetime date =
-  Printf.sprintf "%s %s" (format_date date) (format_time date)
+let format_datetime ?tz date =
+  let tz_str =
+    match tz with
+    | Some tz -> Printf.sprintf "(%s)" (Timedesc.Time_zone.name tz)
+    | None -> ""
+  in
+  Printf.sprintf "%s %s%s" (format_date ?tz date) (format_time ?tz date) tz_str
 
 let next_day day ~next =
   let y1, m1, d1 = Ptime.to_date day in
@@ -123,26 +124,27 @@ let recurs_to_ics (freq, count_or_until, interval, l) buf =
       recur_to_ics recur)
     l
 
-let format_alt ~format ~start ~end_ event =
+let format_alt ~format ~start ~end_ ?tz event =
   let open Event in
   match format with
   | `Text ->
       let id = get_id event in
-      let start_date = " " ^ format_date start in
+      let start_date = " " ^ format_date ?tz start in
       let start_time =
-        match get_day_event event with
+        match is_date event with
         | true -> ""
-        | false -> " " ^ format_time start
+        | false -> " " ^ format_time ?tz start
       in
       let end_date, end_time =
         match end_ with
         | None -> ("", "")
         | Some end_ -> (
-            match (get_day_event event, next_day start ~next:end_) with
+            match (is_date event, next_day start ~next:end_) with
             | true, true -> ("", "")
-            | true, _ -> (" - " ^ format_date end_, "")
-            | false, true -> ("", " - " ^ format_time end_)
-            | false, _ -> (" - " ^ format_date end_, " " ^ format_time end_))
+            | true, _ -> (" - " ^ format_date ?tz end_, "")
+            | false, true -> ("", " - " ^ format_time ?tz end_)
+            | false, _ ->
+                (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_))
       in
       let summary =
         match get_summary event with
@@ -156,6 +158,38 @@ let format_alt ~format ~start ~end_ event =
       in
       Printf.sprintf "%-45s%s%s%s%s%s%s" id start_date start_time end_date
         end_time summary location
+  | `Entries ->
+      let format_opt label f opt =
+        Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
+        |> Option.value ~default:""
+      in
+      let format timezone datetime =
+        match is_date event with
+        | true -> format_date ?tz datetime
+        | false -> (
+            format_datetime ?tz datetime
+            ^ match timezone with None -> "" | Some t -> " (" ^ t ^ ")")
+      in
+      let start_str =
+        format_opt "Start" (format (get_start_timezone event)) (Some start)
+      in
+      let end_str = format_opt "End" (format (get_end_timezone event)) end_ in
+      let location_str = format_opt "Location" Fun.id (get_location event) in
+      let description_str =
+        format_opt "Description" Fun.id (get_description event)
+      in
+      let rrule_str =
+        Option.map
+          (fun r ->
+            let buf = Buffer.create 128 in
+            recurs_to_ics r buf;
+            Printf.sprintf "%s: %s\n" "Reccurence" (Buffer.contents buf))
+          (get_recurrence event)
+        |> Option.value ~default:""
+      in
+      let summary_str = format_opt "Summary" Fun.id (get_summary event) in
+      Printf.sprintf "%s%s%s%s%s%s" summary_str start_str end_str location_str
+        description_str rrule_str
   | `Json ->
       let open Yojson.Safe in
       let json =
@@ -166,10 +200,10 @@ let format_alt ~format ~start ~end_ event =
               match get_summary event with
               | Some summary -> `String summary
               | None -> `Null );
-            ("start", `String (format_datetime start));
+            ("start", `String (format_datetime ?tz start));
             ( "end",
               match end_ with
-              | Some e -> `String (format_datetime e)
+              | Some e -> `String (format_datetime ?tz e)
               | None -> `Null );
             ( "location",
               match get_location event with
@@ -189,9 +223,9 @@ let format_alt ~format ~start ~end_ event =
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
       in
-      let start = format_datetime start in
+      let start = format_datetime ?tz start in
       let end_str =
-        match end_ with Some e -> format_datetime e | None -> ""
+        match end_ with Some e -> format_datetime ?tz e | None -> ""
       in
       let location =
         match get_location event with Some loc -> loc | None -> ""
@@ -205,37 +239,12 @@ let format_alt ~format ~start ~end_ event =
       let cal_props = [] in
       let event_ical = Event.to_icalendar event in
       Icalendar.to_ics ~cr:true (cal_props, [ `Event event_ical ])
-  | `Entries ->
-      let summary =
-        match get_summary event with Some summary -> summary | None -> ""
-      in
-      let start = format_datetime start in
-      let end_str =
-        match end_ with Some e -> format_datetime e | None -> ""
-      in
-      let location =
-        match get_location event with Some loc -> loc | None -> ""
-      in
-      let description =
-        match get_description event with Some desc -> desc | None -> ""
-      in
-      let rrule =
-        match get_recurrence event with
-        | Some r ->
-            let buf = Buffer.create 128 in
-            recurs_to_ics r buf;
-            Buffer.contents buf
-        | None -> ""
-      in
-      Printf.sprintf "%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s\n%s: %s" "Summary"
-        summary "Start" start "End" end_str "Location" location "Description"
-        description "Reccurence" rrule
   | `Sexp ->
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
       in
       let start_date, start_time =
-        let dt = ptime_to_timedesc start in
+        let dt = Date.ptime_to_timedesc ?tz start in
         let y = Timedesc.year dt in
         let m = Timedesc.month dt in
         let d = Timedesc.day dt in
@@ -258,7 +267,7 @@ let format_alt ~format ~start ~end_ event =
       let end_str =
         match end_ with
         | Some end_date ->
-            let dt = ptime_to_timedesc end_date in
+            let dt = Date.ptime_to_timedesc ?tz end_date in
             let y = Timedesc.year dt in
             let m = Timedesc.month dt in
             let d = Timedesc.day dt in
@@ -300,50 +309,54 @@ let format_alt ~format ~start ~end_ event =
         (String.escaped id) (String.escaped summary) start_date start_time
         end_str location description calendar
 
-let format_event ?(format = `Text) event =
+let format_event ?(format = `Text) ?tz event =
   format_alt ~format ~start:(Event.get_start event) ~end_:(Event.get_end event)
-    event
+    ?tz event
 
-let format_instance ?(format = `Text) instance =
+let format_instance ?(format = `Text) ?tz instance =
   let open Recur in
-  format_alt ~format ~start:instance.start ~end_:instance.end_ instance.event
+  format_alt ~format ~start:instance.start ~end_:instance.end_ ?tz
+    instance.event
 
-let format_events ?(format = `Text) events =
+let format_events ?(format = `Text) ?tz events =
   match format with
   | `Json ->
       let json_events =
         List.map
-          (fun e -> Yojson.Safe.from_string (format_event ~format:`Json e))
+          (fun e -> Yojson.Safe.from_string (format_event ~format:`Json ?tz e))
           events
       in
       Yojson.Safe.to_string (`List json_events)
   | `Csv ->
       "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
-      ^ String.concat "\n" (List.map (format_event ~format:`Csv) events)
+      ^ String.concat "\n" (List.map (format_event ~format:`Csv ?tz) events)
   | `Sexp ->
       "("
       ^ String.concat "\n "
-          (List.map (fun e -> format_event ~format:`Sexp e) events)
+          (List.map (fun e -> format_event ~format:`Sexp ?tz e) events)
       ^ ")"
-  | _ -> String.concat "\n" (List.map (fun e -> format_event ~format e) events)
+  | _ ->
+      String.concat "\n" (List.map (fun e -> format_event ~format ?tz e) events)
 
-let format_instances ?(format = `Text) instances =
+let format_instances ?(format = `Text) ?tz instances =
   match format with
   | `Json ->
       let json_instances =
         List.map
-          (fun e -> Yojson.Safe.from_string (format_instance ~format:`Json e))
+          (fun e ->
+            Yojson.Safe.from_string (format_instance ~format:`Json ?tz e))
           instances
       in
       Yojson.Safe.to_string (`List json_instances)
   | `Csv ->
       "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
-      ^ String.concat "\n" (List.map (format_instance ~format:`Csv) instances)
+      ^ String.concat "\n"
+          (List.map (format_instance ~format:`Csv ?tz) instances)
   | `Sexp ->
       "("
       ^ String.concat "\n "
-          (List.map (fun e -> format_instance ~format:`Sexp e) instances)
+          (List.map (fun e -> format_instance ~format:`Sexp ?tz e) instances)
       ^ ")"
   | _ ->
       String.concat "\n"
-        (List.map (fun e -> format_instance ~format e) instances)
+        (List.map (fun e -> format_instance ~format ?tz e) instances)

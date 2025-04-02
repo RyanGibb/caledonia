@@ -13,13 +13,15 @@
   ptime
   ptime.clock.os
   eio
-  eio_main)
+  eio_main
+  timere)
  (modules
   main
+  query_args
+  event_args
   list_cmd
   search_cmd
-  query_args
+  show_cmd
   add_cmd
-  edit_cmd
   delete_cmd
-  show_cmd))
+  edit_cmd))

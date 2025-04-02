@@ -14,13 +14,15 @@ let expand_event event ~from ~to_ =
   match rule with
   (* If there's no recurrence we just return the original event. *)
   | None ->
-      (* Include the original event instance only if it falls within the query range *)
+      (* Include the original event instance only if it falls within the query range. *)
       let start = Event.get_start event in
       let end_ = match Event.get_end event with None -> start | Some e -> e in
       if
-        Ptime.is_earlier start ~than:to_
+        Ptime.compare start to_ < 0
         &&
-        match from with Some f -> Ptime.is_later end_ ~than:f | None -> true
+        (* end_ > f, meaning we don't include events that end at the exact start of our range.
+           This is handy to exclude date events that end at 00:00 the next day. *)
+        match from with Some f -> Ptime.compare end_ f > 0 | None -> true
       then [ clone_with_time event start ]
       else []
   (* We return all instances within the range, regardless of whether the original

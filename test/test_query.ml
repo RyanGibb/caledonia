@@ -6,7 +6,7 @@ open Caledonia_lib
 let fixed_date = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((0, 0, 0), 0))
 
 let setup_fixed_date () =
-  (Date.get_today := fun () -> fixed_date);
+  (Date.get_today := fun ?tz:_ () -> fixed_date);
   fixed_date
 
 let calendar_dir_path = Filename.concat (Sys.getcwd ()) "calendar"
@@ -151,19 +151,23 @@ let test_events =
     (* Event with text in all fields *)
     create_test_event ~collection:"search_test" ~summary:"Project Meeting"
       ~description:"Weekly project status meeting with team"
-      ~location:"Conference Room A" ~start:fixed_date;
+      ~location:"Conference Room A"
+      ~start:(`Datetime (`Utc fixed_date));
     (* Event with mixed case to test case insensitivity *)
     create_test_event ~collection:"search_test" ~summary:"IMPORTANT Meeting"
       ~description:"Critical project review with stakeholders"
-      ~location:"Executive Suite" ~start:fixed_date;
+      ~location:"Executive Suite"
+      ~start:(`Datetime (`Utc fixed_date));
     (* Event with word fragments *)
     create_test_event ~collection:"search_test" ~summary:"Conference Call"
       ~description:"International conference preparation"
-      ~location:"Remote Meeting Room" ~start:fixed_date;
+      ~location:"Remote Meeting Room"
+      ~start:(`Datetime (`Utc fixed_date));
     (* Event with unique text in each field *)
     create_test_event ~collection:"search_test" ~summary:"Workshop on Testing"
       ~description:"Quality Assurance techniques and practices"
-      ~location:"Training Center" ~start:fixed_date;
+      ~location:"Training Center"
+      ~start:(`Datetime (`Utc fixed_date));
   ]
 
 (* Test helper to verify if a list of events contains an event with a given summary *)

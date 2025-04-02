@@ -1,5 +1,5 @@
 opam-version: "2.0"
-version: "0.1.0"
+version: "0.3.0"
 maintainer: "Ryan Gibb <ryan@freumh.org"
 authors: ["Ryan Gibb <ryan@freumh.org"]
 homepage: "https://ryan.freumh.org/caledonia.html"

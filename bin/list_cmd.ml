@@ -2,25 +2,52 @@ open Cmdliner
 open Caledonia_lib
 open Query_args
 
-let run ?from ?to_ ?calendar ?count ~format ~today ~tomorrow ~week ~month ~fs
-    calendar_dir =
+let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
+    ?timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let from, to_ =
-    match Date.convert_relative_date_formats ~today ~tomorrow ~week ~month with
-    | Some (from, to_) -> (Some from, to_)
+  let tz = Query_args.parse_timezone ~timezone in
+  let* from, to_ =
+    match
+      Date.convert_relative_date_formats ~tz ~today ~tomorrow ~week ~month ()
+    with
+    | Some (from, to_) ->
+        let* _ =
+          match (from_str, to_str) with
+          | None, None -> Ok ()
+          | _ ->
+              Error
+                (`Msg
+                   "Can't specify --from / --to when using --today, --week, \
+                    --month")
+        in
+        Ok (Some from, to_)
     | None -> (
+        let* from =
+          match from_str with
+          | None -> Ok None
+          | Some s ->
+              let* d = Date.parse_date ~tz s `From in
+              Ok (Some d)
+        in
+        let* to_ =
+          match to_str with
+          | None -> Ok None
+          | Some s ->
+              let* d = Date.parse_date ~tz s `From in
+              Ok (Some d)
+        in
         match (from, to_) with
-        | Some f, Some t -> (Some f, Date.to_end_of_day t)
+        | Some f, Some t -> Ok (Some f, Date.to_end_of_day t)
         | Some f, None ->
             let one_month_later = Date.add_months f 1 in
-            (Some f, one_month_later)
+            Ok (Some f, one_month_later)
         | None, Some t ->
-            let today_date = !Date.get_today () in
-            (Some today_date, Date.to_end_of_day t)
+            let today_date = !Date.get_today ~tz () in
+            Ok (Some today_date, Date.to_end_of_day t)
         | None, None ->
-            let today_date = !Date.get_today () in
+            let today_date = !Date.get_today ~tz () in
             let one_month_later = Date.add_months today_date 1 in
-            (Some today_date, one_month_later))
+            Ok (Some today_date, one_month_later))
   in
   let filter =
     match calendar with
@@ -32,14 +59,15 @@ let run ?from ?to_ ?calendar ?count ~format ~today ~tomorrow ~week ~month ~fs
     Query.query ~fs calendar_dir ?filter ~from ~to_ ?limit:count ()
   in
   if results = [] then print_endline "No events found."
-  else print_endline (Format.format_instances ~format results);
+  else print_endline (Format.format_instances ~format ~tz results);
   Ok ()
 
 let cmd ~fs calendar_dir =
-  let run from to_ calendar count format today tomorrow week month =
+  let run from_str to_str calendar count format today tomorrow week month
+      timezone =
     match
-      run ?from ?to_ ?calendar ?count ~format ~today ~tomorrow ~week ~month ~fs
-        calendar_dir
+      run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week
+        ~month ?timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -49,7 +77,7 @@ let cmd ~fs calendar_dir =
   let term =
     Term.(
       const run $ from_arg $ to_arg $ calendar_arg $ count_arg $ format_arg
-      $ today_arg $ tomorrow_arg $ week_arg $ month_arg)
+      $ today_arg $ tomorrow_arg $ week_arg $ month_arg $ timezone_arg)
   in
   let doc = "List calendar events" in
   let man =

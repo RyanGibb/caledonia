@@ -4,18 +4,6 @@ type event_id = string
 type t = { collection : Collection.t; file_name : string; ical : event }
 type date_error = [ `Msg of string ]
 
-(* TODO handle timezones *)
-let ptime_of_datetime = function
-  | `Datetime (`Utc t) -> t
-  | `Datetime (`Local t) -> t
-  | `Datetime (`With_tzid (t, _)) -> t
-  | `Date date -> (
-      match Ptime.of_date date with
-      | Some t -> t
-      | None ->
-          let year, month, day = date in
-          failwith (Printf.sprintf "Invalid date %d-%d-%d" year month day))
-
 let generate_uuid () =
   let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
   Uuidm.to_string uuid
@@ -24,10 +12,8 @@ let create ~summary ~start ?end_ ?location ?description ?recurrence collection =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
-  let dtstart = (Params.empty, `Datetime (`Utc start)) in
-  let dtend_or_duration =
-    Option.map (fun d -> `Dtend (Params.empty, `Datetime (`Utc d))) end_
-  in
+  let dtstart = (Params.empty, start) in
+  let dtend_or_duration = end_ in
   let rrule = Option.map (fun r -> (Params.empty, r)) recurrence in
   let now = Ptime_clock.now () in
   let props = [ `Summary (Params.empty, summary) ] in
@@ -58,14 +44,10 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let now = Ptime_clock.now () in
   let uid = t.ical.uid in
   let dtstart =
-    match start with
-    | None -> t.ical.dtstart
-    | Some s -> (Params.empty, `Datetime (`Utc s))
+    match start with None -> t.ical.dtstart | Some s -> (Params.empty, s)
   in
   let dtend_or_duration =
-    match end_ with
-    | None -> t.ical.dtend_or_duration
-    | Some d -> Some (`Dtend (Params.empty, `Datetime (`Utc d)))
+    match end_ with None -> t.ical.dtend_or_duration | Some _ -> end_
   in
   let rrule =
     match recurrence with
@@ -145,11 +127,11 @@ let get_summary t =
   | s :: _ -> Some s
   | _ -> None
 
-let get_start t = ptime_of_datetime (snd t.ical.dtstart)
+let get_start t = Date.ptime_of_ical (snd t.ical.dtstart)
 
 let get_end t =
   match t.ical.dtend_or_duration with
-  | Some (`Dtend (_, d)) -> Some (ptime_of_datetime d)
+  | Some (`Dtend (_, d)) -> Some (Date.ptime_of_ical d)
   | Some (`Duration (_, span)) -> (
       let start = get_start t in
       match Ptime.add_span start span with
@@ -161,15 +143,25 @@ let get_end t =
                (Printf.sprintf "%.2fs" (Ptime.Span.to_float_s span))))
   | None -> None
 
+let get_start_timezone t =
+  match t.ical.dtstart with
+  | _, `Datetime (`With_tzid (_, (_, tzid))) -> Some tzid
+  | _ -> None
+
+let get_end_timezone t =
+  match t.ical.dtend_or_duration with
+  | Some (`Dtend (_, `Datetime (`With_tzid (_, (_, tzid))))) -> Some tzid
+  | _ -> None
+
 let get_duration t =
   match t.ical.dtend_or_duration with
   | Some (`Duration (_, span)) -> Some span
   | Some (`Dtend (_, e)) ->
-      let span = Ptime.diff (ptime_of_datetime e) (get_start t) in
+      let span = Ptime.diff (Date.ptime_of_ical e) (get_start t) in
       Some span
   | None -> None
 
-let get_day_event t =
+let is_date t =
   match (t.ical.dtstart, t.ical.dtend_or_duration) with
   | (_, `Date _), _ -> true
   | _, Some (`Dtend (_, `Date _)) -> true

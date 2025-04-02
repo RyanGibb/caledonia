@@ -11,7 +11,8 @@ let test_recurring_events_in_date_range () =
   let recurrence = (`Weekly, None, Some 1, []) in
   (* Weekly recurrence *)
   let recurring_event =
-    Event.create ~summary:"Weekly Recurring Event" ~start:event_start
+    Event.create ~summary:"Weekly Recurring Event"
+      ~start:(`Datetime (`Utc event_start))
       ~recurrence (Collection.Col "test")
   in
   let test_date_range from_str to_str expected_count =

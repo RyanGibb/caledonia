@@ -2,21 +2,48 @@ open Cmdliner
 open Caledonia_lib
 open Query_args
 
-let run ?from ?to_ ?calendar ?count ?query_text ~summary ~description ~location
-    ~format ~today ~tomorrow ~week ~month ~recurring ~non_recurring ~fs
-    calendar_dir =
+let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
+    ~location ~format ~today ~tomorrow ~week ~month ~recurring ~non_recurring
+    ?timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let filters = ref [] in
-  let from, to_ =
-    match Date.convert_relative_date_formats ~today ~tomorrow ~week ~month with
-    | Some (from, to_) -> (Some from, to_)
+  let tz = Query_args.parse_timezone ~timezone in
+  let* from, to_ =
+    match
+      Date.convert_relative_date_formats ~tz ~today ~tomorrow ~week ~month ()
+    with
+    | Some (from, to_) ->
+        let* _ =
+          match (from_str, to_str) with
+          | None, None -> Ok ()
+          | _ ->
+              Error
+                (`Msg
+                   "Can't specify --from / --to when using --today, --week, \
+                    --month")
+        in
+        Ok (Some from, to_)
     | None -> (
+        let* from =
+          match from_str with
+          | None -> Ok None
+          | Some s ->
+              let* d = Date.parse_date s `From in
+              Ok (Some d)
+        in
+        let* to_ =
+          match to_str with
+          | None -> Ok None
+          | Some s ->
+              let* d = Date.parse_date s `From in
+              Ok (Some d)
+        in
         let max_date = Date.add_years (!Date.get_today ()) 75 in
         match (from, to_) with
-        | Some f, Some t -> (Some f, Date.to_end_of_day t)
-        | Some f, None -> (Some f, Date.to_end_of_day max_date)
-        | None, Some t -> (None, Date.to_end_of_day t)
-        | None, None -> (None, Date.to_end_of_day max_date))
+        | Some f, Some t -> Ok (Some f, Date.to_end_of_day t)
+        | Some f, None -> Ok (Some f, Date.to_end_of_day max_date)
+        | None, Some t -> Ok (None, Date.to_end_of_day t)
+        | None, None -> Ok (None, Date.to_end_of_day max_date))
   in
   (match calendar with
   | Some collection_id ->
@@ -73,12 +100,12 @@ let non_recurring_arg =
   Arg.(value & flag & info [ "non-recurring"; "R" ] ~doc)
 
 let cmd ~fs calendar_dir =
-  let run query_text from to_ calendar count format summary description location
-      today tomorrow week month recurring non_recurring =
+  let run query_text from_str to_str calendar count format summary description
+      location today tomorrow week month recurring non_recurring timezone =
     match
-      run ?from ?to_ ?calendar ?count ?query_text ~summary ~description
+      run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
         ~location ~format ~today ~tomorrow ~week ~month ~recurring
-        ~non_recurring ~fs calendar_dir
+        ~non_recurring ?timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -89,7 +116,8 @@ let cmd ~fs calendar_dir =
     Term.(
       const run $ query_text_arg $ from_arg $ to_arg $ calendar_arg $ count_arg
       $ format_arg $ summary_arg $ description_arg $ location_arg $ today_arg
-      $ tomorrow_arg $ week_arg $ month_arg $ recurring_arg $ non_recurring_arg)
+      $ tomorrow_arg $ week_arg $ month_arg $ recurring_arg $ non_recurring_arg
+      $ timezone_arg)
   in
   let doc = "Search calendar events for specific text" in
   let man =

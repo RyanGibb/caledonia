@@ -116,6 +116,7 @@ let query_events ~fs calendar_dir ?filter ?sort_by ?order ?limit () =
     | _ -> sorted_events)
 
 let query ~fs calendar_dir ?filter ~from ~to_ ?sort_by ?order ?limit () =
+  Fmt.epr "Querying from %a to %a\n%!" Ptime.pp (Option.get from) Ptime.pp to_;
   match query_events ~fs calendar_dir ?filter ?sort_by ?order () with
   | Ok events ->
       let instances =

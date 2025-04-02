@@ -2,7 +2,7 @@
 
 Caledonia is a command-line calendar client.
 Currently, it operates on directories of [`.ics`](https://datatracker.ietf.org/doc/html/rfc5545) files (as managed by tools like [vdirsyncer](https://github.com/pimutils/vdirsyncer)).
-It supports the `list`, `search`, `show`, `add`, `delete`, and `edit` subcommands.
+It has the `list`, `search`, `show`, `add`, `delete`, and `edit` subcommands, and supports timezones.
 See [TODO](./TODO.org) for future plans.
 
 ## Configuration
