@@ -73,3 +73,27 @@ val get_collection : t -> Collection.t
 
 val get_file_path :
   fs:'a Eio.Path.t -> calendar_dir_path:string -> t -> 'a Eio.Path.t
+
+type comparator = t -> t -> int
+(** Event comparator function type *)
+
+val by_start : comparator
+(** Compare events by start time, earlier times come first *)
+
+val by_end : comparator
+(** Compare events by end time, earlier times come first. Events with end times
+    come after those without *)
+
+val by_summary : comparator
+(** Compare events by summary alphabetically. Events with summaries come before
+    those without *)
+
+val by_location : comparator
+(** Compare events by location alphabetically. Events with locations come before
+    those without *)
+
+val by_collection : comparator
+(** Compare events by collection name alphabetically *)
+
+val descending : comparator -> comparator
+(** Reverse the order of a comparator *)

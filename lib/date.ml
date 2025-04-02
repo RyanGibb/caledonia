@@ -342,11 +342,12 @@ let ptime_of_ical = function
       in
       timedesc_to_ptime dt
   | `Date date -> (
-    let y, m, d = date in
-    match Timedesc.Date.Ymd.make ~year:y ~month:m ~day:d with
-    | Ok new_date ->
-      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
-        let new_dt = Timedesc.of_date_and_time_exn new_date midnight in
-        timedesc_to_ptime new_dt
-    | Error _ -> 
-          failwith (Printf.sprintf "Invalid date %d-%d-%d" y m d))
+      let y, m, d = date in
+      match Timedesc.Date.Ymd.make ~year:y ~month:m ~day:d with
+      | Ok new_date ->
+          let midnight =
+            Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 ()
+          in
+          let new_dt = Timedesc.of_date_and_time_exn new_date midnight in
+          timedesc_to_ptime new_dt
+      | Error _ -> failwith (Printf.sprintf "Invalid date %d-%d-%d" y m d))

@@ -2,6 +2,23 @@ open Icalendar
 
 type instance = { event : Event.t; start : Ptime.t; end_ : Ptime.t option }
 
+module Instance = struct
+  type t = instance
+  type comparator = t -> t -> int
+
+  let by_start i1 i2 = Ptime.compare i1.start i2.start
+
+  let by_end i1 i2 =
+    match (i1.end_, i2.end_) with
+    | Some t1, Some t2 -> Ptime.compare t1 t2
+    | Some _, None -> 1
+    | None, Some _ -> -1
+    | None, None -> 0
+
+  let by_event event_comp i1 i2 = event_comp i1.event i2.event
+  let descending comp i1 i2 = -1 * comp i1 i2
+end
+
 let clone_with_time original start =
   let duration = Event.get_duration original in
   let end_ =

@@ -1,13 +1,6 @@
 (** Filter-based searching and querying of calendar events *)
 
-type filter
-(** Type representing a query filter *)
-
-type sort_order = [ `Ascending | `Descending ]
-(** Type representing the sort order *)
-
-type sort_by = [ `Start | `End | `Summary | `Location | `Calendar ]
-(** Type representing sort criteria *)
+type filter = Event.t -> bool
 
 val summary_contains : string -> filter
 val description_contains : string -> filter
@@ -24,8 +17,7 @@ val query_events :
   fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
   Calendar_dir.t ->
   ?filter:filter ->
-  ?sort_by:[< `Calendar | `End | `Location | `Start | `Summary ] ->
-  ?order:[< `Ascending | `Descending ] ->
+  ?comparator:Event.comparator ->
   ?limit:int ->
   unit ->
   (Event.t list, [> `Msg of string ]) result
@@ -38,8 +30,7 @@ val query :
   ?filter:filter ->
   from:Ptime.t option ->
   to_:Ptime.t ->
-  ?sort_by:sort_by ->
-  ?order:sort_order ->
+  ?comparator:Recur.Instance.comparator ->
   ?limit:int ->
   unit ->
   (Recur.instance list, [> `Msg of string ]) result
@@ -49,6 +40,3 @@ val query :
 (* Test-only helper functions *)
 val matches_filter : Event.t -> filter -> bool
 (** Check if an event matches the given filter *)
-
-val compare_events : sort_by -> sort_order -> Event.t -> Event.t -> int
-(** Compare two events based on the sort criteria and order *)

@@ -193,3 +193,37 @@ let get_file_path ~fs ~calendar_dir_path t =
     fs / calendar_dir_path
     / (match t.collection with Col s -> s)
     / t.file_name)
+
+type comparator = t -> t -> int
+
+let by_start e1 e2 =
+  let t1 = get_start e1 in
+  let t2 = get_start e2 in
+  Ptime.compare t1 t2
+
+let by_end e1 e2 =
+  match (get_end e1, get_end e2) with
+  | Some t1, Some t2 -> Ptime.compare t1 t2
+  | Some _, None -> 1
+  | None, Some _ -> -1
+  | None, None -> 0
+
+let by_summary e1 e2 =
+  match (get_summary e1, get_summary e2) with
+  | Some s1, Some s2 -> String.compare s1 s2
+  | Some _, None -> 1
+  | None, Some _ -> -1
+  | None, None -> 0
+
+let by_location e1 e2 =
+  match (get_location e1, get_location e2) with
+  | Some l1, Some l2 -> String.compare l1 l2
+  | Some _, None -> 1
+  | None, Some _ -> -1
+  | None, None -> 0
+
+let by_collection e1 e2 =
+  match (get_collection e1, get_collection e2) with
+  | Collection.Col c1, Collection.Col c2 -> String.compare c1 c2
+
+let descending comp e1 e2 = -1 * comp e1 e2
