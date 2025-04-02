@@ -1,16 +1,17 @@
-* DONE list/search events
-* DONE add/remove events
-** TODO support more options in creating events, e.g. event duration
-* DONE edit events
-* TODO diagnose events failing to parse
-* TODO timezones
-timerer
-* TODO [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
-* TODO CalDAV syncing
+- [x] list/search events
+- [x] add/remove events
+- [x] edit events
+  - [ ] support duration
+- [ ] timezones
+- [ ] make filter a lambda
+- [ ] diagnose events failing to parse
+- [ ] [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
+- [ ] CalDAV syncing
 Currently, you can use [[https://github.com/pimutils/vdirsyncer][vdirsyncer]]
-* TODO support a DSL of date queries (e.g. query for every event on a Monday)
-* TODO support querying times as well as dates
-* TODO custom date/time formatting
-* TODO support querying regex
-* TODO server mode
+- [ ] support a DSL of date queries (e.g. query for every event on a Monday)
+use timere and it's NLP parsing
+- [ ] support querying times as well as dates
+- [ ] custom date/time formatting
+- [ ] support querying regex
+- [ ] server mode
 and maybe hold =Event='s in-memory in a =Collection= instead of parsing them for every =Query=

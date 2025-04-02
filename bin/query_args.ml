@@ -8,7 +8,7 @@ let from_arg =
      +Nm)"
   in
   let i = Arg.info [ "from"; "f" ] ~docv:"DATE" ~doc in
-  let parse_date s = Date.parse_date s `From in
+  let parse_date s = Date.parse_date s `From () in
   Arg.(value @@ opt (some (Cmdliner.Arg.conv (parse_date, Ptime.pp))) None i)
 
 let to_arg =
@@ -17,7 +17,7 @@ let to_arg =
      this-week, next-week, this-month, next-month, +Nd, -Nd, +Nw, +Nm)"
   in
   let i = Arg.info [ "to"; "t" ] ~docv:"DATE" ~doc in
-  let parse_date s = Date.parse_date s `From in
+  let parse_date s = Date.parse_date s `To () in
   Arg.(value @@ opt (some (Cmdliner.Arg.conv (parse_date, Ptime.pp))) None i)
 
 let calendar_arg =
@@ -30,15 +30,15 @@ let calendar_arg =
 let format_enum =
   [
     ("text", `Text);
+    ("entries", `Entries);
     ("json", `Json);
     ("csv", `Csv);
     ("ics", `Ics);
-    ("records", `Entries);
     ("sexp", `Sexp);
   ]
 
 let format_arg =
-  let doc = "Output format (text, json, csv, ics, table, sexp)" in
+  let doc = "Output format (text, entries, json, csv, ics, sexp)" in
   Arg.(
     value
     & opt (enum format_enum) `Text
@@ -64,6 +64,16 @@ let month_arg =
   let doc = "Show events for the current month" in
   Arg.(value & flag & info [ "month"; "m" ] ~doc)
 
+let timezone_arg =
+  let doc =
+    "Timezone to use for date calculations (e.g., 'America/New_York', 'UTC', \
+     'Europe/London') defaulting to the system timezone"
+  in
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "timezone"; "z" ] ~docv:"TIMEZONE" ~doc)
+
 let date_format_manpage_entries =
   [
     `S "DATE FORMATS";
@@ -72,6 +82,10 @@ let date_format_manpage_entries =
     `I ("--tomorrow", "Show events for tomorrow only");
     `I ("--week, -w", "Show events for the current week");
     `I ("--month, -m", "Show events for the current month");
+    `I
+      ( "--timezone, -z",
+        "Timezone to use for date calculations (e.g., 'America/New_York', \
+         'UTC')" );
     `P "Relative date formats for --from and --to:";
     `I ("today", "Current day");
     `I ("tomorrow", "Next day");
@@ -86,9 +100,31 @@ let date_format_manpage_entries =
     `I ("+Nm", "N months from today (e.g., +2m for 2 months from today)");
   ]
 
-let convert_relative_date ~today ~tomorrow ~week ~month =
-  if today then Some "today"
-  else if tomorrow then Some "tomorrow"
-  else if week then Some "this-week"
-  else if month then Some "this-month"
+let convert_relative_date ~today ~tomorrow ~week ~month ~timezone =
+  if today || tomorrow || week || month then
+    let tz =
+      match timezone with
+      | Some tz -> (
+          match Timedesc.Time_zone.make tz with
+          | Some tz_obj -> tz_obj
+          | None -> failwith ("Invalid timezone: " ^ tz))
+      | None -> !Date.default_timezone ()
+    in
+    let _ =
+      Date.convert_relative_date_formats ~today ~tomorrow ~week ~month ~tz ()
+    in
+
+    if today then Some "today"
+    else if tomorrow then Some "tomorrow"
+    else if week then Some "this-week"
+    else if month then Some "this-month"
+    else None
   else None
+
+let parse_timezone ~timezone =
+  match timezone with
+  | Some tzid -> (
+      match Timedesc.Time_zone.make tzid with
+      | Some tz -> tz
+      | None -> failwith ("Invalid timezone: " ^ tzid))
+  | None -> !Date.default_timezone ()

@@ -3,12 +3,15 @@ open Caledonia_lib
 open Query_args
 
 let run ?from ?to_ ?calendar ?count ?query_text ~summary ~description ~location
-    ~format ~today ~tomorrow ~week ~month ~recurring ~non_recurring ~fs
-    calendar_dir =
+    ~format ~today ~tomorrow ~week ~month ~recurring ~non_recurring ?timezone
+    ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let filters = ref [] in
+  let tz = Query_args.parse_timezone ~timezone in
   let from, to_ =
-    match Date.convert_relative_date_formats ~today ~tomorrow ~week ~month with
+    match
+      Date.convert_relative_date_formats ~today ~tomorrow ~week ~month ~tz ()
+    with
     | Some (from, to_) -> (Some from, to_)
     | None -> (
         let max_date = Date.add_years (!Date.get_today ()) 75 in
@@ -74,11 +77,11 @@ let non_recurring_arg =
 
 let cmd ~fs calendar_dir =
   let run query_text from to_ calendar count format summary description location
-      today tomorrow week month recurring non_recurring =
+      today tomorrow week month recurring non_recurring timezone =
     match
       run ?from ?to_ ?calendar ?count ?query_text ~summary ~description
         ~location ~format ~today ~tomorrow ~week ~month ~recurring
-        ~non_recurring ~fs calendar_dir
+        ~non_recurring ?timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -89,7 +92,8 @@ let cmd ~fs calendar_dir =
     Term.(
       const run $ query_text_arg $ from_arg $ to_arg $ calendar_arg $ count_arg
       $ format_arg $ summary_arg $ description_arg $ location_arg $ today_arg
-      $ tomorrow_arg $ week_arg $ month_arg $ recurring_arg $ non_recurring_arg)
+      $ tomorrow_arg $ week_arg $ month_arg $ recurring_arg $ non_recurring_arg
+      $ timezone_arg)
   in
   let doc = "Search calendar events for specific text" in
   let man =

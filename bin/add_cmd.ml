@@ -1,40 +1,17 @@
 open Cmdliner
 open Caledonia_lib
-open Query_args
+open Event_args
 
 let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
-    ~description ~recur ~collection ~today ~tomorrow ~week ~month ~fs
-    calendar_dir =
+    ~description ~recur ~collection ?timezone ?end_timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let* start_date =
-    match
-      ( Query_args.convert_relative_date ~today ~tomorrow ~week ~month,
-        start_date )
-    with
-    | Some date, _ -> Ok date
-    | None, Some date -> Ok date
-    | None, None -> Error (`Msg "Start date is required")
-  in
+  let* start = parse_start ~start_date ~start_time ~timezone in
   let* start =
-    Date.parse_date_time_opt ~date:start_date ?time:start_time `From
+    match start with
+    | Some s -> Ok s
+    | None -> Error (`Msg "Start date required")
   in
-  let end_date =
-    match
-      (Query_args.convert_relative_date ~today ~tomorrow ~week ~month, end_date)
-    with
-    | Some date, _ -> Some date
-    | None, Some date -> Some date
-    | None, None -> None
-  in
-  let* end_ =
-    match end_date with
-    | None -> Ok None
-    | Some end_date ->
-        let* end_dt =
-          Date.parse_date_time_opt ~date:end_date ?time:end_time `To
-        in
-        Ok (Some end_dt)
-  in
+  let* end_ = parse_end ~end_date ~end_time ~timezone ~end_timezone in
   let* recurrence =
     match recur with
     | Some r ->
@@ -51,63 +28,12 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
   Printf.printf "Event created with ID: %s\n" (Event.get_id event);
   Ok ()
 
-let collection_arg =
-  let doc = "Calendar to add the event to" in
-  Arg.(
-    required
-    & opt (some string) None
-    & info [ "calendar"; "c" ] ~docv:"CALENDAR" ~doc)
-
-let summary_arg =
-  let doc = "Event summary/title" in
-  Arg.(required & pos 0 (some string) None & info [] ~docv:"SUMMARY" ~doc)
-
-let start_date_arg =
-  let doc = "Event start date (YYYY-MM-DD)" in
-  Arg.(value & opt (some string) None & info [ "date" ] ~docv:"DATE" ~doc)
-
-let start_time_arg =
-  let doc = "Event start time (HH:MM)" in
-  Arg.(value & opt (some string) None & info [ "time"; "t" ] ~docv:"TIME" ~doc)
-
-let end_date_arg =
-  let doc = "Event end date (YYYY-MM-DD)" in
-  Arg.(
-    value
-    & opt (some string) None
-    & info [ "end-date"; "e" ] ~docv:"END_DATE" ~doc)
-
-let end_time_arg =
-  let doc = "Event end time (HH:MM)" in
-  Arg.(
-    value & opt (some string) None & info [ "end-time" ] ~docv:"END_TIME" ~doc)
-
-let location_arg =
-  let doc = "Event location" in
-  Arg.(
-    value
-    & opt (some string) None
-    & info [ "location"; "l" ] ~docv:"LOCATION" ~doc)
-
-let description_arg =
-  let doc = "Event description" in
-  Arg.(
-    value
-    & opt (some string) None
-    & info [ "description"; "D" ] ~docv:"DESCRIPTION" ~doc)
-
-let recur_arg =
-  let doc = "See RECURRENCE section" in
-  Arg.(
-    value & opt (some string) None & info [ "recur"; "r" ] ~docv:"RECUR" ~doc)
-
 let cmd ~fs calendar_dir =
   let run summary start_date start_time end_date end_time location description
-      recur collection today tomorrow week month =
+      recur collection timezone end_timezone =
     match
       run ~summary ~start_date ~start_time ~end_date ~end_time ~location
-        ~description ~recur ~collection ~today ~tomorrow ~week ~month ~fs
-        calendar_dir
+        ~description ~recur ~collection ?timezone ?end_timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -116,9 +42,9 @@ let cmd ~fs calendar_dir =
   in
   let term =
     Term.(
-      const run $ summary_arg $ start_date_arg $ start_time_arg $ end_date_arg
-      $ end_time_arg $ location_arg $ description_arg $ recur_arg
-      $ collection_arg $ today_arg $ tomorrow_arg $ week_arg $ month_arg)
+      const run $ required_summary_arg $ start_date_arg $ start_time_arg
+      $ end_date_arg $ end_time_arg $ location_arg $ description_arg $ recur_arg
+      $ collection_arg $ timezone_arg $ end_time_arg)
   in
   let doc = "Add a new calendar event" in
   let man =
@@ -128,32 +54,27 @@ let cmd ~fs calendar_dir =
       `P
         "Specify the event summary (title) as the first argument, and use \
          options to set other details.";
-      `P "Note all times are in Coordinated Universal Time (UTC).";
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries
     @ [
         `S Manpage.s_examples;
-        `I
-          ( "Add a simple event for today:",
-            "caled add \"Team Meeting\" --today --time 14:00" );
+        `I ("Add a event for today:", "caled add \"Meeting\" -d today -t 14:00");
         `I
           ( "Add an event with a specific date and time:",
-            "caled add \"Dentist Appointment\" --date 2025-04-15 --time 10:30"
-          );
+            "caled add \"Dentist Appointment\" -d 2025-04-15 -t 10:30" );
         `I
           ( "Add an event with an end time:",
-            "caled add \"Conference\" --date 2025-05-20 --time 09:00 \
-             --end-date 2025-05-22 --end-time 17:00" );
+            "caled add \"Conference\" -d 2025-05-20 -t 09:00 -e 2025-05-22 -T \
+             17:00" );
         `I
           ( "Add an event with location and description:",
-            "caled add \"Lunch with Bob\" --date 2025-04-02 --time 12:30 \
-             --location \"Pasta Restaurant\" --description \"Discuss project \
-             plans\"" );
+            "caled add \"Lunch with Bob\" -d 2025-04-02 -t 12:30 -l \"Pasta \
+             Restaurant\" -D \"Discuss project plans\"" );
         `I
           ( "Add an event to a specific calendar:",
-            "caled add \"Work Meeting\" --date 2025-04-03 --time 15:00 \
-             --calendar work" );
+            "caled add \"Work Meeting\" -d 2025-04-03 -t 15:00 --calendar work"
+          );
         `S "RECURRENCE";
         `P
           "Recurrence rule in iCalendar RFC5545 format. The FREQ part is \
