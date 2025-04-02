@@ -19,3 +19,4 @@
   - and maybe hold =Event='s in-memory in a =Collection= instead of parsing them for every =Query=
 - [ ] implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
 - [ ] implement an emacs client like mu4e
+- [ ] parallel queries
