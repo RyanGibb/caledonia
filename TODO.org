@@ -6,7 +6,9 @@
 - [ ] don't load all calendars into memory to show only one event
 - [ ] support specifying duration
 - [ ] diagnose events failing to parse
+  - [[https://github.com/robur-coop/icalendar/issues/14]]
 - [ ] [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
+- [ ] [[https://github.com/robur-coop/icalendar/issues/15][RRULE with local datetime]]
 - [ ] CalDAV syncing
   - Currently, you can use [[https://github.com/pimutils/vdirsyncer][vdirsyncer]]
 - [ ] support querying times as well as dates
@@ -20,3 +22,5 @@
 - [ ] implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
 - [ ] implement an emacs client like mu4e
 - [ ] parallel queries
+- [ ] remove collection module
+  - ref [[https://github.com/ocaml-ppx/ppxlib/issues/481]] cc patrick
