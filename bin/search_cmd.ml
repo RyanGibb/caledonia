@@ -35,7 +35,7 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
           match to_str with
           | None -> Ok None
           | Some s ->
-              let* d = Date.parse_date s `From in
+              let* d = Date.parse_date s `To in
               Ok (Some d)
         in
         let max_date = Date.add_years (!Date.get_today ()) 75 in

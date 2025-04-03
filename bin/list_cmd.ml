@@ -33,7 +33,7 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
           match to_str with
           | None -> Ok None
           | Some s ->
-              let* d = Date.parse_date ~tz s `From in
+              let* d = Date.parse_date ~tz s `To in
               Ok (Some d)
         in
         match (from, to_) with
