@@ -386,46 +386,53 @@ let recurs_to_ics (freq, count_or_until, interval, l) buf =
       recur_to_ics recur)
     l
 
+let text_event_data ?tz event =
+  let id = get_id event in
+  let start = get_start event in
+  let end_ = get_end event in
+  let start_date = format_date ?tz start in
+  let start_time =
+    match is_date event with true -> "" | false -> " " ^ format_time ?tz start
+  in
+  let end_date, end_time =
+    match end_ with
+    | None -> ("", "")
+    | Some end_ -> (
+        match is_date event with
+        | true -> (
+            match next_day start ~next:end_ with
+            | true -> ("", "")
+            | false -> (" - " ^ format_date ?tz end_, ""))
+        | false -> (
+            match same_day start end_ with
+            | true -> ("", " - " ^ format_time ?tz end_)
+            | false -> (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)
+            ))
+  in
+  let summary =
+    match get_summary event with
+    | Some summary when summary <> "" -> summary
+    | _ -> ""
+  in
+  let location =
+    match get_location event with
+    | Some loc when loc <> "" -> "@" ^ loc
+    | _ -> ""
+  in
+  let calendar_name = get_calendar_name event in
+  let date_time = start_date ^ start_time ^ end_date ^ end_time in
+  (id, calendar_name, date_time, summary, location)
+
 let format_event ?(format = `Text) ?tz event =
   let start = get_start event in
   let end_ = get_end event in
   match format with
   | `Text ->
-      let id = get_id event in
-      let start_date = " " ^ format_date ?tz start in
-      let start_time =
-        match is_date event with
-        | true -> ""
-        | false -> " " ^ format_time ?tz start
+      let id, calendar_name, date_time, summary, location =
+        text_event_data ?tz event
       in
-      let end_date, end_time =
-        match end_ with
-        | None -> ("", "")
-        | Some end_ -> (
-            match is_date event with
-            | true -> (
-                match next_day start ~next:end_ with
-                | true -> ("", "")
-                | false -> (" - " ^ format_date ?tz end_, ""))
-            | false -> (
-                match same_day start end_ with
-                | true -> ("", " - " ^ format_time ?tz end_)
-                | false ->
-                    (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)))
-      in
-      let summary =
-        match get_summary event with
-        | Some summary when summary <> "" -> " " ^ summary
-        | _ -> ""
-      in
-      let location =
-        match get_location event with
-        | Some loc when loc <> "" -> " @" ^ loc
-        | _ -> ""
-      in
-      let calendar_name = get_calendar_name event in
-      Printf.sprintf "%-45s\t%s\t%s%s%s%s%s%s" id calendar_name start_date
-        start_time end_date end_time summary location
+      Printf.sprintf "%s\t%s\t%s\t%s\t%s" id calendar_name date_time summary
+        location
   | `Entries ->
       let format_opt label f opt =
         Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
@@ -573,6 +580,38 @@ let format_event ?(format = `Text) ?tz event =
         (String.escaped id) (String.escaped summary) start_date start_time
         end_str location description calendar
 
+let format_events_with_dynamic_columns ?tz events =
+  if events = [] then ""
+  else
+    let event_data = List.map (text_event_data ?tz) events in
+    (* Calculate max width for each column *)
+    let max_id_width =
+      List.fold_left
+        (fun acc (id, _, _, _, _) -> max acc (String.length id))
+        0 event_data
+    in
+    let max_cal_width =
+      List.fold_left
+        (fun acc (_, cal, _, _, _) -> max acc (String.length cal))
+        0 event_data
+    in
+    let max_date_width =
+      List.fold_left
+        (fun acc (_, _, date, _, _) -> max acc (String.length date))
+        0 event_data
+    in
+
+    (* Format each event with calculated widths *)
+    let formatted_events =
+      List.map
+        (fun (id, cal, date, summary, location) ->
+          Printf.sprintf "%-*s  %-*s  %-*s  %s%s" max_id_width id max_cal_width
+            cal max_date_width date summary
+            (if location <> "" then " " ^ location else ""))
+        event_data
+    in
+    String.concat "\n" formatted_events
+
 let format_events ?(format = `Text) ?tz events =
   match format with
   | `Json ->
@@ -590,6 +629,7 @@ let format_events ?(format = `Text) ?tz events =
       ^ String.concat "\n "
           (List.map (fun e -> format_event ~format:`Sexp ?tz e) events)
       ^ ")"
+  | `Text -> format_events_with_dynamic_columns ?tz events
   | _ ->
       String.concat "\n" (List.map (fun e -> format_event ~format ?tz e) events)
 

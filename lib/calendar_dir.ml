@@ -46,23 +46,26 @@ let rec load_events_recursive calendar_name dir_path =
   try
     Eio.Path.read_dir dir_path
     |> List.fold_left
-      (fun acc name ->
-        let path = Eio.Path.(dir_path / name) in
-        if Eio.Path.is_directory path then
-          acc @ load_events_recursive calendar_name path
-        else if Filename.check_suffix name ".ics" then
-          try
-            let content = Eio.Path.load path in
-            match parse content with
-            | Ok calendar -> acc @ Event.events_of_icalendar ~file:path calendar_name calendar
-            | Error err ->
-                Printf.eprintf "Failed to parse %s: %s\n%!" (snd path) err;
-                acc
-          with Eio.Exn.Io _ as exn ->
-            Fmt.epr "Failed to read file %s: %a\n%!" (snd path) Eio.Exn.pp exn;
-            acc
-        else acc)
-      []
+         (fun acc name ->
+           let path = Eio.Path.(dir_path / name) in
+           if Eio.Path.is_directory path then
+             acc @ load_events_recursive calendar_name path
+           else if Filename.check_suffix name ".ics" then (
+             try
+               let content = Eio.Path.load path in
+               match parse content with
+               | Ok calendar ->
+                   acc
+                   @ Event.events_of_icalendar ~file:path calendar_name calendar
+               | Error err ->
+                   Printf.eprintf "Failed to parse %s: %s\n%!" (snd path) err;
+                   acc
+             with Eio.Exn.Io _ as exn ->
+               Fmt.epr "Failed to read file %s: %a\n%!" (snd path) Eio.Exn.pp
+                 exn;
+               acc)
+           else acc)
+         []
   with Eio.Exn.Io _ as exn ->
     Fmt.epr "Failed to read directory %s: %a\n%!" (snd dir_path) Eio.Exn.pp exn;
     []
