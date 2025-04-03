@@ -628,6 +628,9 @@ let expand_recurrences ~from ~to_ event =
       let generator =
         let ical_event = to_ical_event event in
         let recurrence_ids = get_recurrence_ids event in
+        Fmt.pr "Event:\n%s\n" (format_event ~format:`Entries (clone_with_event event ical_event));
+        List.iter (fun e ->
+          Fmt.pr "Recurrent ID event:\n%s\n" (format_event ~format:`Entries (clone_with_event event e))) recurrence_ids;
         recur_events ~recurrence_ids ical_event
       in
       collect generator []
