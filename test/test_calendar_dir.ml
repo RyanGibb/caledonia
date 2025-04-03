@@ -48,13 +48,10 @@ let test_get_events ~fs () =
   in
   match Calendar_dir.get_events ~fs calendar_dir with
   | Ok events ->
-      Alcotest.(check int)
-        "Should find two events" 32 (List.length events);
+      Alcotest.(check int) "Should find two events" 32 (List.length events);
       ()
   | Error e ->
-      let msg =
-        match e with `Msg m -> m
-      in
+      let msg = match e with `Msg m -> m in
       Alcotest.fail ("Error getting collections: " ^ msg)
 
 let calendar_tests fs =

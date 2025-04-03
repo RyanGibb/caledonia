@@ -31,8 +31,8 @@ val get_events :
   fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
   t ->
   (Event.t list, [> `Msg of string ]) result
-(** Get all events in all collections. This will load any
-    Collection.ts that haven't been loaded yet. *)
+(** Get all events in all collections. This will load any Collection.ts that
+    haven't been loaded yet. *)
 
 val add_event :
   fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->

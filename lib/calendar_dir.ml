@@ -83,7 +83,7 @@ let get_collection ~fs calendar_dir collection =
             (`Msg
                (Printf.sprintf "Exception processing directory %s: %s"
                   (snd collection_path) (Printexc.to_string e))))
-  
+
 let ( let* ) = Result.bind
 
 let get_events ~fs calendar_dir =

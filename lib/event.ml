@@ -130,9 +130,7 @@ let get_summary t =
   | s :: _ -> Some s
   | _ -> None
 
-let get_ical_start event =
-  Date.ptime_of_ical (snd event.dtstart)
-
+let get_ical_start event = Date.ptime_of_ical (snd event.dtstart)
 let get_start t = get_ical_start t.event
 
 let get_ical_end event =
@@ -279,10 +277,12 @@ let expand_recurrences ~from ~to_ event =
         | None -> List.rev acc
         | Some recur ->
             let start = get_ical_start recur in
-            let end_ = match get_ical_end recur with None -> start | Some e -> e in
+            let end_ =
+              match get_ical_end recur with None -> start | Some e -> e
+            in
             (* if start >= to then we're outside our (exclusive) date range and we terminate *)
             if Ptime.compare start to_ >= 0 then List.rev acc
-            (* if end > from then, *)
+              (* if end > from then, *)
             else if
               match from with
               | Some f -> Ptime.compare end_ f > 0
@@ -290,7 +290,7 @@ let expand_recurrences ~from ~to_ event =
             (* we include the event *)
             then collect generator (clone_with_event event recur :: acc)
             (* otherwise we iterate till the event is in range *)
-            else collect generator acc
+              else collect generator acc
       in
       let generator =
         let ical_event = to_ical_event event in
