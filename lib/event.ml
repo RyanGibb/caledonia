@@ -168,11 +168,15 @@ let get_end t = get_ical_end t.event
 let get_start_timezone t =
   match t.event.dtstart with
   | _, `Datetime (`With_tzid (_, (_, tzid))) -> Some tzid
+  | _, `Datetime (`Utc _) -> Some "UTC"
+  | _, `Datetime (`Local _) -> Some "FLOATING"
   | _ -> None
 
 let get_end_timezone t =
   match t.event.dtend_or_duration with
   | Some (`Dtend (_, `Datetime (`With_tzid (_, (_, tzid))))) -> Some tzid
+  | Some (`Dtend (_, `Datetime (`Utc _))) -> Some "UTC"
+  | Some (`Dtend (_, `Datetime (`Local _))) -> Some "FLOATING"
   | _ -> None
 
 let get_duration t =
@@ -386,8 +390,25 @@ let text_event_data ?tz event =
   let start = get_start event in
   let end_ = get_end event in
   let start_date = format_date ?tz start in
+  let start_timezone = get_start_timezone event in
+  let end_timezone = get_end_timezone event in
+  let same_timezone =
+    match (start_timezone, end_timezone) with
+    | Some tz1, Some tz2 when tz1 = tz2 -> true
+    | _ -> false
+  in
   let start_time =
-    match is_date event with true -> "" | false -> " " ^ format_time ?tz start
+    match is_date event with
+    | true -> ""
+    | false ->
+        let tz_str =
+          if same_timezone then " " ^ format_time ?tz start
+          else
+            match start_timezone with
+            | Some tzid -> " " ^ format_time ?tz start ^ " (" ^ tzid ^ ")"
+            | None -> " " ^ format_time ?tz start
+        in
+        tz_str
   in
   let end_date, end_time =
     match end_ with
@@ -400,9 +421,29 @@ let text_event_data ?tz event =
             | false -> (" - " ^ format_date ?tz end_, ""))
         | false -> (
             match day_diff start ~next:end_ == 0 with
-            | true -> ("", " - " ^ format_time ?tz end_)
-            | false -> (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)
-            ))
+            | true ->
+                let tz_str =
+                  match end_timezone with
+                  | Some tzid when same_timezone ->
+                      ("", " - " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")")
+                  | Some tzid ->
+                      ("", " - " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")")
+                  | None -> ("", " - " ^ format_time ?tz end_)
+                in
+                tz_str
+            | false ->
+                let tz_str =
+                  match end_timezone with
+                  | Some tzid when same_timezone ->
+                      ( " - " ^ format_date ?tz end_,
+                        " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")" )
+                  | Some tzid ->
+                      ( " - " ^ format_date ?tz end_,
+                        " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")" )
+                  | None ->
+                      (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)
+                in
+                tz_str))
   in
   let summary =
     match get_summary event with
@@ -433,17 +474,29 @@ let format_event ?(format = `Text) ?tz event =
         Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
         |> Option.value ~default:""
       in
-      let format timezone datetime =
+      let start_timezone = get_start_timezone event in
+      let end_timezone = get_end_timezone event in
+      let same_timezone =
+        match (start_timezone, end_timezone) with
+        | Some tz1, Some tz2 when tz1 = tz2 -> true
+        | _ -> false
+      in
+      let format timezone datetime is_end =
         match is_date event with
         | true -> format_date ?tz datetime
-        | false -> (
-            format_datetime ?tz datetime
-            ^ match timezone with None -> "" | Some t -> " (" ^ t ^ ")")
+        | false ->
+            let tz_suffix =
+              if (not is_end) && same_timezone then ""
+              else match timezone with None -> "" | Some t -> " (" ^ t ^ ")"
+            in
+            format_datetime ?tz datetime ^ tz_suffix
       in
       let start_str =
-        format_opt "Start" (format (get_start_timezone event)) (Some start)
+        format_opt "Start" (fun d -> format start_timezone d false) (Some start)
       in
-      let end_str = format_opt "End" (format (get_end_timezone event)) end_ in
+      let end_str =
+        format_opt "End" (fun d -> format end_timezone d true) end_
+      in
       let location_str = format_opt "Location" Fun.id (get_location event) in
       let description_str =
         format_opt "Description" Fun.id (get_description event)

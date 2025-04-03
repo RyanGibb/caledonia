@@ -35,7 +35,11 @@ let format_enum =
   ]
 
 let format_arg =
-  let doc = "Output format (text, entries, json, csv, ics, sexp)" in
+  let doc =
+    "Output format (text, entries, json, csv, ics, sexp). Note that dates are \
+     localised to the TIMEZONE option but the timezone they're defined in is \
+     displayed."
+  in
   Arg.(
     value
     & opt (enum format_enum) `Text
