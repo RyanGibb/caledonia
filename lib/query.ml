@@ -45,14 +45,11 @@ let ( let* ) = Result.bind
 let query_without_recurrence ~fs calendar_dir ?filter
     ?(comparator = Event.by_start) ?limit () =
   let* events = Calendar_dir.get_events ~fs calendar_dir in
-  let filtered_events =
+  let events =
     match filter with Some f -> List.filter f events | None -> events
   in
-  let sorted_events = List.sort comparator filtered_events in
-  Ok
-    (match limit with
-    | Some n when n > 0 -> take n sorted_events
-    | _ -> sorted_events)
+  let events = List.sort comparator events in
+  Ok (match limit with Some n when n > 0 -> take n events | _ -> events)
 
 let query ~fs calendar_dir ?filter ~from ~to_ ?(comparator = Event.by_start)
     ?limit () =
@@ -65,6 +62,5 @@ let query ~fs calendar_dir ?filter ~from ~to_ ?(comparator = Event.by_start)
       (fun event -> Event.expand_recurrences event ~from ~to_)
       events
   in
-  let sorted_events = List.sort comparator events in
-  Ok
-    (match limit with Some n when n > 0 -> take n events | _ -> sorted_events)
+  let events = List.sort comparator events in
+  Ok (match limit with Some n when n > 0 -> take n events | _ -> events)
