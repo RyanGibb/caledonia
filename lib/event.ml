@@ -290,6 +290,11 @@ let format_datetime ?tz date =
   in
   Printf.sprintf "%s %s%s" (format_date ?tz date) (format_time ?tz date) tz_str
 
+let same_day day other =
+  let y1, m1, d1 = Ptime.to_date day in
+  let y2, m2, d2 = Ptime.to_date other in
+  y1 == y2 && m1 == m2 && d1 == d2
+
 let next_day day ~next =
   let y1, m1, d1 = Ptime.to_date day in
   let y2, m2, d2 = Ptime.to_date next in
@@ -399,12 +404,16 @@ let format_event ?(format = `Text) ?tz event =
         match end_ with
         | None -> ("", "")
         | Some end_ -> (
-            match (is_date event, next_day start ~next:end_) with
-            | true, true -> ("", "")
-            | true, _ -> (" - " ^ format_date ?tz end_, "")
-            | false, true -> ("", " - " ^ format_time ?tz end_)
-            | false, _ ->
-                (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_))
+            match is_date event with
+            | true -> (
+                match next_day start ~next:end_ with
+                | true -> ("", "")
+                | false -> (" - " ^ format_date ?tz end_, ""))
+            | false -> (
+                match same_day start end_ with
+                | true -> ("", " - " ^ format_time ?tz end_)
+                | false ->
+                    (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)))
       in
       let summary =
         match get_summary event with
