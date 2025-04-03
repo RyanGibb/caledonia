@@ -118,10 +118,22 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   { collection; file; event; calendar }
 
 let events_of_icalendar collection ~file calendar =
-  List.filter_map
-    (function
-      | `Event event -> Some { collection; file; event; calendar } | _ -> None)
-    (snd calendar)
+  let remove_dup_ids lst =
+    let rec aux acc = function
+      | [] -> acc
+      | x :: xs ->
+          if List.exists (fun r -> r.uid = x.uid) acc then aux acc xs
+          else aux (x :: acc) xs
+    in
+    aux [] lst
+  in
+  let events =
+    List.filter_map
+      (function `Event event -> Some event | _ -> None)
+      (snd calendar)
+  in
+  let events = remove_dup_ids events in
+  List.map (function event -> { collection; file; event; calendar }) events
 
 let to_ical_event t = t.event
 let to_ical_calendar t = t.calendar
@@ -200,17 +212,6 @@ let get_description t =
 let get_recurrence t = Option.map (fun r -> snd r) t.event.rrule
 let get_collection t = t.collection
 let get_file t = t.file
-
-let get_recurrence_ids t =
-  let _, recurrence_ids =
-    match
-      List.partition (function `Event _ -> true | _ -> false) (snd t.calendar)
-    with
-    | `Event hd :: tl, _ ->
-        (hd, List.map (function `Event e -> e | _ -> assert false) tl)
-    | _ -> assert false
-  in
-  recurrence_ids
 
 type comparator = t -> t -> int
 
@@ -627,10 +628,25 @@ let expand_recurrences ~from ~to_ event =
       in
       let generator =
         let ical_event = to_ical_event event in
-        let recurrence_ids = get_recurrence_ids event in
-        Fmt.pr "Event:\n%s\n" (format_event ~format:`Entries (clone_with_event event ical_event));
-        List.iter (fun e ->
-          Fmt.pr "Recurrent ID event:\n%s\n" (format_event ~format:`Entries (clone_with_event event e))) recurrence_ids;
-        recur_events ~recurrence_ids ical_event
+        (* The first event is the non recurrence-id one *)
+        let _, other_events =
+          match
+            List.partition
+              (function `Event _ -> true | _ -> false)
+              (snd event.calendar)
+          with
+          | `Event hd :: tl, _ ->
+              (hd, List.map (function `Event e -> e | _ -> assert false) tl)
+          | _ -> assert false
+        in
+        Fmt.pr "Event:\n%s\n"
+          (format_event ~format:`Entries (clone_with_event event ical_event));
+        List.iter
+          (fun e ->
+            Fmt.pr "Recurrent ID event:\n%s\n"
+              (format_event ~format:`Entries (clone_with_event event e)))
+          other_events;
+        (* Icalendar filters for equal uids *)
+        recur_events ~recurrence_ids:other_events ical_event
       in
       collect generator []

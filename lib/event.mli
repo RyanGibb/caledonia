@@ -72,7 +72,6 @@ val get_description : t -> string option
 val get_recurrence : t -> Icalendar.recurrence option
 val get_collection : t -> Collection.t
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
-val get_recurrence_ids : t -> Icalendar.event list
 
 type comparator = t -> t -> int
 (** Event comparator function type *)
