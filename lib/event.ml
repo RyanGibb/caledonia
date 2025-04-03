@@ -425,8 +425,9 @@ let format_event ?(format = `Text) ?tz event =
         | Some loc when loc <> "" -> " @" ^ loc
         | _ -> ""
       in
-      Printf.sprintf "%-45s%s%s%s%s%s%s" id start_date start_time end_date
-        end_time summary location
+      let collection = match get_collection event with Col s -> s in
+      Printf.sprintf "%-45s\t%s\t%s%s%s%s%s%s" id collection start_date
+        start_time end_date end_time summary location
   | `Entries ->
       let format_opt label f opt =
         Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
