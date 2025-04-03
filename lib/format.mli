@@ -13,15 +13,6 @@ val format_event :
   string
 (** Format a single event, optionally using the specified timezone *)
 
-val format_instance :
-  fs:'a Eio.Path.t ->
-  calendar_dir:Calendar_dir.t ->
-  ?format:format ->
-  ?tz:Timedesc.Time_zone.t ->
-  Recur.instance ->
-  string
-(** Format a single event instance, optionally using the specified timezone *)
-
 val format_events :
   fs:'a Eio.Path.t ->
   calendar_dir:Calendar_dir.t ->
@@ -30,12 +21,3 @@ val format_events :
   Event.t list ->
   string
 (** Format a list of events, optionally using the specified timezone *)
-
-val format_instances :
-  fs:'a Eio.Path.t ->
-  calendar_dir:Calendar_dir.t ->
-  ?format:format ->
-  ?tz:Timedesc.Time_zone.t ->
-  Recur.instance list ->
-  string
-(** Format a list of event instances, optionally using the specified timezone *)

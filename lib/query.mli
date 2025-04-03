@@ -13,7 +13,7 @@ val and_filter : filter list -> filter
 val or_filter : filter list -> filter
 val not_filter : filter -> filter
 
-val query_events :
+val query_without_recurrence :
   fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
   Calendar_dir.t ->
   ?filter:filter ->
@@ -30,12 +30,12 @@ val query :
   ?filter:filter ->
   from:Ptime.t option ->
   to_:Ptime.t ->
-  ?comparator:Recur.Instance.comparator ->
+  ?comparator:Event.comparator ->
   ?limit:int ->
   unit ->
-  (Recur.instance list, [> `Msg of string ]) result
+  (Event.t list, [> `Msg of string ]) result
 (** Find events with expansion of recurring events. Returns Ok with the list of
-    instances, or Error with a message. *)
+    events, or Error with a message. *)
 
 (* Test-only helper functions *)
 val matches_filter : Event.t -> filter -> bool

@@ -29,6 +29,6 @@ depends: [
   "alcotest" {>= "1.8.0" & with-test}
 ]
 pin-depends: [
-  # https://github.com/robur-coop/icalendar/pull/17
-  ["icalendar.dev" "git+https://github.com/robur-coop/icalendar#70006afc8cf05963f5187966aae18d40e532d4b5"]
+  # https://github.com/robur-coop/icalendar/pull/13
+  ["icalendar.dev" "git+https://github.com/robur-coop/icalendar#1ab8d3970295bc96dc651c53b25c7c9963a27f81"]
 ]

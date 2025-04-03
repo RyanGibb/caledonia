@@ -55,14 +55,13 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
         Some (Query.in_collections [ Collection.Col collection_id ])
     | None -> None
   in
-  let comparator = Query_args.create_instance_comparator sort in
+  let comparator = Query_args.create_event_comparator sort in
   let* results =
     Query.query ~fs calendar_dir ?filter ~from ~to_ ~comparator ?limit:count ()
   in
   if results = [] then print_endline "No events found."
   else
-    print_endline
-      (Format.format_instances ~fs ~calendar_dir ~format ~tz results);
+    print_endline (Format.format_events ~fs ~calendar_dir ~format ~tz results);
   Ok ()
 
 let cmd ~fs calendar_dir =

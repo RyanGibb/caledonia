@@ -136,47 +136,45 @@ let sort_arg =
     & opt_all sort_converter [ default_sort ]
     & info [ "sort"; "S" ] ~docv:"SORT" ~doc)
 
-(* Convert sort specs to an instance comparator *)
-let create_instance_comparator sort_specs =
+(* Convert sort specs to an event comparator *)
+let create_event_comparator sort_specs =
   match sort_specs with
-  | [] -> Recur.Instance.by_start
+  | [] -> Event.by_start
   | [ spec ] ->
       let comp =
         match spec.field with
-        | `Start -> Recur.Instance.by_start
-        | `End -> Recur.Instance.by_end
-        | `Summary -> Recur.Instance.by_event Event.by_summary
-        | `Location -> Recur.Instance.by_event Event.by_location
-        | `Calendar -> Recur.Instance.by_event Event.by_collection
+        | `Start -> Event.by_start
+        | `End -> Event.by_end
+        | `Summary -> Event.by_summary
+        | `Location -> Event.by_location
+        | `Calendar -> Event.by_collection
       in
-      if spec.descending then Recur.Instance.descending comp else comp
+      if spec.descending then Event.descending comp else comp
   | specs ->
       (* Chain multiple sort specs together *)
       List.fold_right
         (fun spec acc ->
           let comp =
             match spec.field with
-            | `Start -> Recur.Instance.by_start
-            | `End -> Recur.Instance.by_end
-            | `Summary -> Recur.Instance.by_event Event.by_summary
-            | `Location -> Recur.Instance.by_event Event.by_location
-            | `Calendar -> Recur.Instance.by_event Event.by_collection
+            | `Start -> Event.by_start
+            | `End -> Event.by_end
+            | `Summary -> Event.by_summary
+            | `Location -> Event.by_location
+            | `Calendar -> Event.by_collection
           in
-          let comp =
-            if spec.descending then Recur.Instance.descending comp else comp
-          in
-          Recur.Instance.chain comp acc)
+          let comp = if spec.descending then Event.descending comp else comp in
+          Event.chain comp acc)
         (List.tl specs)
         (let spec = List.hd specs in
          let comp =
            match spec.field with
-           | `Start -> Recur.Instance.by_start
-           | `End -> Recur.Instance.by_end
-           | `Summary -> Recur.Instance.by_event Event.by_summary
-           | `Location -> Recur.Instance.by_event Event.by_location
-           | `Calendar -> Recur.Instance.by_event Event.by_collection
+           | `Start -> Event.by_start
+           | `End -> Event.by_end
+           | `Summary -> Event.by_summary
+           | `Location -> Event.by_location
+           | `Calendar -> Event.by_collection
          in
-         if spec.descending then Recur.Instance.descending comp else comp)
+         if spec.descending then Event.descending comp else comp)
 
 let date_format_manpage_entries =
   [

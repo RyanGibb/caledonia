@@ -124,8 +124,10 @@ let recurs_to_ics (freq, count_or_until, interval, l) buf =
       recur_to_ics recur)
     l
 
-let format_alt ~fs ~calendar_dir ~format ~start ~end_ ?tz event =
+let format_event ~fs ~calendar_dir ?(format = `Text) ?tz event =
   let open Event in
+  let start = get_start event in
+  let end_ = Event.get_end event in
   match format with
   | `Text ->
       let id = get_id event in
@@ -244,9 +246,8 @@ let format_alt ~fs ~calendar_dir ~format ~start ~end_ ?tz event =
       Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start end_str
         location cal_id
   | `Ics ->
-      let cal_props = [] in
-      let event_ical = Event.to_icalendar event in
-      Icalendar.to_ics ~cr:true (cal_props, [ `Event event_ical ])
+      let calendar = Event.to_ical_calendar event in
+      Icalendar.to_ics ~cr:true calendar
   | `Sexp ->
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
@@ -317,15 +318,6 @@ let format_alt ~fs ~calendar_dir ~format ~start ~end_ ?tz event =
         (String.escaped id) (String.escaped summary) start_date start_time
         end_str location description calendar
 
-let format_event ~fs ~calendar_dir ?(format = `Text) ?tz event =
-  format_alt ~fs ~calendar_dir ~format ~start:(Event.get_start event)
-    ~end_:(Event.get_end event) ?tz event
-
-let format_instance ~fs ~calendar_dir ?(format = `Text) ?tz instance =
-  let open Recur in
-  format_alt ~fs ~calendar_dir ~format ~start:instance.start ~end_:instance.end_
-    ?tz instance.event
-
 let format_events ~fs ~calendar_dir ?(format = `Text) ?tz events =
   match format with
   | `Json ->
@@ -353,33 +345,3 @@ let format_events ~fs ~calendar_dir ?(format = `Text) ?tz events =
         (List.map
            (fun e -> format_event ~fs ~calendar_dir ~format ?tz e)
            events)
-
-let format_instances ~fs ~calendar_dir ?(format = `Text) ?tz instances =
-  match format with
-  | `Json ->
-      let json_instances =
-        List.map
-          (fun e ->
-            Yojson.Safe.from_string
-              (format_instance ~fs ~calendar_dir ~format:`Json ?tz e))
-          instances
-      in
-      Yojson.Safe.to_string (`List json_instances)
-  | `Csv ->
-      "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
-      ^ String.concat "\n"
-          (List.map
-             (format_instance ~fs ~calendar_dir ~format:`Csv ?tz)
-             instances)
-  | `Sexp ->
-      "("
-      ^ String.concat "\n "
-          (List.map
-             (fun e -> format_instance ~fs ~calendar_dir ~format:`Sexp ?tz e)
-             instances)
-      ^ ")"
-  | _ ->
-      String.concat "\n"
-        (List.map
-           (fun e -> format_instance ~fs ~calendar_dir ~format ?tz e)
-           instances)

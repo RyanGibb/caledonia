@@ -54,15 +54,7 @@ let load_events collection collection_path file_name =
         let content = Eio.Path.load file in
         match parse content with
         | Ok calendar ->
-            let events =
-              List.filter_map
-                (function
-                  | `Event e ->
-                      Some (Event.of_icalendar collection ~file_name e)
-                  | _ -> None)
-                (snd calendar)
-            in
-            events
+            Event.events_of_icalendar ~file_name collection calendar
         | Error err ->
             Printf.eprintf "Failed to parse %s: %s\n%!" file_path err;
             []
@@ -91,8 +83,10 @@ let get_collection ~fs calendar_dir collection =
             (`Msg
                (Printf.sprintf "Exception processing directory %s: %s"
                   (snd collection_path) (Printexc.to_string e))))
+  
+let ( let* ) = Result.bind
 
-let get_collections ~fs calendar_dir =
+let get_events ~fs calendar_dir =
   match list_collections ~fs calendar_dir with
   | Error e -> Error e
   | Ok ids -> (
@@ -101,33 +95,26 @@ let get_collections ~fs calendar_dir =
           | [] -> Ok (List.rev acc)
           | id :: rest -> (
               match get_collection ~fs calendar_dir id with
-              | Ok cal -> process_ids ((id, cal) :: acc) rest
+              | Ok cal -> process_ids (cal :: acc) rest
               | Error `Not_found -> process_ids acc rest
               | Error (`Msg e) -> Error (`Msg e))
         in
-        process_ids [] ids
+        let* collections = process_ids [] ids in
+        Ok (List.flatten collections)
       with exn ->
         Error
           (`Msg
              (Printf.sprintf "Error getting collections: %s"
                 (Printexc.to_string exn))))
 
-let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
-
 let add_event ~fs calendar_dir event =
   let collection = Event.get_collection event in
   let file_path =
     Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
   in
-  let ical_event = Event.to_icalendar event in
   let collection_path = get_collection_path ~fs calendar_dir collection in
-  let ( let* ) = Result.bind in
   let* () = ensure_dir collection_path in
-  let calendar =
-    let props = [ default_prodid ] in
-    let components = [ `Event ical_event ] in
-    (props, components)
-  in
+  let calendar = Event.to_ical_calendar event in
   let content = Icalendar.to_ics ~cr:true calendar in
   let* _ =
     try
@@ -149,27 +136,16 @@ let add_event ~fs calendar_dir event =
       calendar_dir.collections;
   Ok ()
 
-let load_calendar path =
-  try
-    let file_content = Eio.Path.load path in
-    match Icalendar.parse file_content with
-    | Ok calendar -> Ok calendar
-    | Error msg -> Error (`Msg msg)
-  with Eio.Exn.Io _ as exn ->
-    Error
-      (`Msg (Fmt.str "Failed to read file %s: %a\n%!" (snd path) Eio.Exn.pp exn))
-
 let edit_event ~fs calendar_dir event =
   let collection = Event.get_collection event in
   let event_id = Event.get_id event in
   let collection_path = get_collection_path ~fs calendar_dir collection in
-  let ( let* ) = Result.bind in
   let* () = ensure_dir collection_path in
-  let ical_event = Event.to_icalendar event in
+  let ical_event = Event.to_ical_event event in
   let file_path =
     Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
   in
-  let* existing_props, existing_components = load_calendar file_path in
+  let existing_props, existing_components = Event.to_ical_calendar event in
   let calendar =
     (* Replace the event with our updated version *)
     let filtered_components =
@@ -210,12 +186,11 @@ let delete_event ~fs calendar_dir event =
   let collection = Event.get_collection event in
   let event_id = Event.get_id event in
   let collection_path = get_collection_path ~fs calendar_dir collection in
-  let ( let* ) = Result.bind in
   let* () = ensure_dir collection_path in
   let file_path =
     Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
   in
-  let* existing_props, existing_components = load_calendar file_path in
+  let existing_props, existing_components = Event.to_ical_calendar event in
   let other_events = ref false in
   let calendar =
     (* Replace the event with our updated version *)

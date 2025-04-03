@@ -212,3 +212,136 @@ let parse_end ~end_date ~end_time ~timezone ~end_timezone =
                    (`Dtend
                       ( Icalendar.Params.empty,
                         `Datetime (`With_tzid (datetime, (false, tzid))) )))))
+
+let combine_results (results : ('a, 'b) result list) : ('a list, 'b) result =
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | Ok v :: rest -> aux (v :: acc) rest
+    | Error e :: _ -> Error e
+  in
+  aux [] results
+
+let parse_recurrence recur =
+  let ( let* ) = Result.bind in
+  let parts = String.split_on_char ';' recur in
+  let freq = ref None in
+  let count = ref None in
+  let until = ref None in
+  let interval = ref None in
+  let by_parts = ref [] in
+  let results =
+    List.map
+      (fun part ->
+        let kv = String.split_on_char '=' part in
+        match kv with
+        | [ "FREQ"; value ] -> (
+            match String.uppercase_ascii value with
+            | "DAILY" ->
+                freq := Some `Daily;
+                Ok ()
+            | "WEEKLY" ->
+                freq := Some `Weekly;
+                Ok ()
+            | "MONTHLY" ->
+                freq := Some `Monthly;
+                Ok ()
+            | "YEARLY" ->
+                freq := Some `Yearly;
+                Ok ()
+            | _ -> Error (`Msg ("Unsupported frequency: " ^ value)))
+        | [ "COUNT"; value ] ->
+            if !until <> None then
+              Error (`Msg "Cannot use both COUNT and UNTIL in the same rule")
+            else (
+              count := Some (`Count (int_of_string value));
+              Ok ())
+        | [ "UNTIL"; value ] -> (
+            if !count <> None then
+              Error (`Msg "Cannot use both COUNT and UNTIL in the same rule")
+            else
+              let* v =
+                match Icalendar.parse_datetime value with
+                | Ok v -> Ok v
+                | Error e -> Error (`Msg e)
+              in
+              match v with
+              | `With_tzid _ -> Error (`Msg "Until can't be in a timezone")
+              | `Utc u ->
+                  until := Some (`Until (`Utc u));
+                  Ok ()
+              | `Local l ->
+                  until := Some (`Until (`Local l));
+                  Ok ())
+        | [ "INTERVAL"; value ] ->
+            interval := Some (int_of_string value);
+            Ok ()
+        | [ "BYDAY"; value ] ->
+            (* Parse day specifications like MO,WE,FR or 1MO,-1FR *)
+            let days = String.split_on_char ',' value in
+            let parse_day day =
+              (* Extract ordinal if present (like 1MO or -1FR) *)
+              let ordinal, day_code =
+                if
+                  String.length day >= 3
+                  && (String.get day 0 = '+'
+                     || String.get day 0 = '-'
+                     || (String.get day 0 >= '0' && String.get day 0 <= '9'))
+                then (
+                  let idx = ref 0 in
+                  while
+                    !idx < String.length day
+                    && (String.get day !idx = '+'
+                       || String.get day !idx = '-'
+                       || String.get day !idx >= '0'
+                          && String.get day !idx <= '9')
+                  do
+                    incr idx
+                  done;
+                  let ord_str = String.sub day 0 !idx in
+                  let day_str =
+                    String.sub day !idx (String.length day - !idx)
+                  in
+                  (int_of_string ord_str, day_str))
+                else (0, day)
+              in
+              let* weekday =
+                match day_code with
+                | "MO" -> Ok `Monday
+                | "TU" -> Ok `Tuesday
+                | "WE" -> Ok `Wednesday
+                | "TH" -> Ok `Thursday
+                | "FR" -> Ok `Friday
+                | "SA" -> Ok `Saturday
+                | "SU" -> Ok `Sunday
+                | _ -> Error (`Msg ("Invalid weekday: " ^ day_code))
+              in
+              Ok (ordinal, weekday)
+            in
+            let* day_specs = combine_results (List.map parse_day days) in
+            by_parts := `Byday day_specs :: !by_parts;
+            Ok ()
+        | [ "BYMONTHDAY"; value ] ->
+            let days = String.split_on_char ',' value in
+            let month_days = List.map int_of_string days in
+            by_parts := `Bymonthday month_days :: !by_parts;
+            Ok ()
+        | [ "BYMONTH"; value ] ->
+            let months = String.split_on_char ',' value in
+            let month_nums = List.map int_of_string months in
+            by_parts := `Bymonth month_nums :: !by_parts;
+            Ok ()
+        | _ -> Ok ())
+      parts
+  in
+  let* _ = combine_results results in
+  match !freq with
+  | Some f ->
+      let limit =
+        match (!count, !until) with
+        | Some c, None -> Some c
+        | None, Some u -> Some u
+        | _ -> None
+      in
+      let recurrence = (f, limit, !interval, !by_parts) in
+      Ok recurrence
+  | None -> Error (`Msg "FREQ is required in recurrence rule")

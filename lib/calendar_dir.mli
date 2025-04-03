@@ -27,11 +27,11 @@ val get_collection :
 (** Get all calendar files in a Collection.t. If the collection doesn't exist in
     the cache, it will be loaded from disk. *)
 
-val get_collections :
+val get_events :
   fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
   t ->
-  ((Collection.t * Event.t list) list, [> `Msg of string ]) result
-(** Get all Collection.ts with their calendar files. This will load any
+  (Event.t list, [> `Msg of string ]) result
+(** Get all events in all collections. This will load any
     Collection.ts that haven't been loaded yet. *)
 
 val add_event :

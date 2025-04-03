@@ -40,12 +40,11 @@ val edit :
   t
 (** Edit an existing event. *)
 
-val of_icalendar : Collection.t -> file_name:string -> Icalendar.event -> t
-(** Convert an Icalendar event to our event type. *)
+val events_of_icalendar :
+  Collection.t -> file_name:string -> Icalendar.calendar -> t list
 
-val to_icalendar : t -> Icalendar.event
-(** Convert our event type to an Icalendar event *)
-
+val to_ical_event : t -> Icalendar.event
+val to_ical_calendar : t -> Icalendar.calendar
 val get_id : t -> event_id
 val get_summary : t -> string option
 
@@ -74,6 +73,8 @@ val get_collection : t -> Collection.t
 val get_file_path :
   fs:'a Eio.Path.t -> calendar_dir_path:string -> t -> 'a Eio.Path.t
 
+val get_recurrence_ids : t -> Icalendar.event list
+
 type comparator = t -> t -> int
 (** Event comparator function type *)
 
@@ -101,3 +102,5 @@ val descending : comparator -> comparator
 val chain : comparator -> comparator -> comparator
 (** Chain two comparators together, using the second one as a tiebreaker when
     the first one returns equality (0) *)
+
+val expand_recurrences : from:Ptime.t option -> to_:Ptime.t -> t -> t list

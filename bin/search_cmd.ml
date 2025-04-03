@@ -68,14 +68,13 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
   if recurring then filters := Query.recurring_only () :: !filters;
   if non_recurring then filters := Query.non_recurring_only () :: !filters;
   let filter = Query.and_filter !filters in
-  let comparator = Query_args.create_instance_comparator sort in
+  let comparator = Query_args.create_event_comparator sort in
   let* results =
     Query.query ~fs calendar_dir ~filter ~from ~to_ ~comparator ?limit:count ()
   in
   if results = [] then print_endline "No events found."
   else
-    print_endline
-      (Format.format_instances ~tz ~fs ~calendar_dir ~format results);
+    print_endline (Format.format_events ~tz ~fs ~calendar_dir ~format results);
   Ok ()
 
 let query_text_arg =

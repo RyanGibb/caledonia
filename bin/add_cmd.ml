@@ -15,7 +15,7 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
   let* recurrence =
     match recur with
     | Some r ->
-        let* p = Recur.parse_recurrence r in
+        let* p = parse_recurrence r in
         Ok (Some p)
     | None -> Ok None
   in

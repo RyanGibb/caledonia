@@ -31,48 +31,40 @@ let or_filter filters event = List.exists (fun filter -> filter event) filters
 let not_filter filter event = not (filter event)
 let matches_filter event filter = filter event
 
-let query_events ~fs calendar_dir ?filter ?(comparator = Event.by_start) ?limit
-    () =
-  let ( let* ) = Result.bind in
-  let* collections = Calendar_dir.get_collections ~fs calendar_dir in
-  let events =
-    List.flatten (List.map (fun (_collection, events) -> events) collections)
+let take n list =
+  let rec aux n lst acc =
+    match (lst, n) with
+    | _, 0 -> List.rev acc
+    | [], _ -> List.rev acc
+    | x :: xs, n -> aux (n - 1) xs (x :: acc)
   in
+  aux n list []
+
+let ( let* ) = Result.bind
+
+let query_without_recurrence ~fs calendar_dir ?filter
+    ?(comparator = Event.by_start) ?limit () =
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
   let filtered_events =
     match filter with Some f -> List.filter f events | None -> events
   in
   let sorted_events = List.sort comparator filtered_events in
   Ok
     (match limit with
-    | Some n when n > 0 ->
-        let rec take n lst acc =
-          match (lst, n) with
-          | _, 0 -> List.rev acc
-          | [], _ -> List.rev acc
-          | x :: xs, n -> take (n - 1) xs (x :: acc)
-        in
-        take n sorted_events []
+    | Some n when n > 0 -> take n sorted_events
     | _ -> sorted_events)
 
-let query ~fs calendar_dir ?filter ~from ~to_
-    ?(comparator = Recur.Instance.by_start) ?limit () =
-  match query_events ~fs calendar_dir ?filter () with
-  | Ok events ->
-      let instances =
-        List.concat_map
-          (fun event -> Recur.expand_event event ~from ~to_)
-          events
-      in
-      let sorted_instances = List.sort comparator instances in
-      Ok
-        (match limit with
-        | Some n when n > 0 ->
-            let rec take n lst acc =
-              match (lst, n) with
-              | _, 0 -> List.rev acc
-              | [], _ -> List.rev acc
-              | x :: xs, n -> take (n - 1) xs (x :: acc)
-            in
-            take n sorted_instances []
-        | _ -> sorted_instances)
-  | Error e -> Error e
+let query ~fs calendar_dir ?filter ~from ~to_ ?(comparator = Event.by_start)
+    ?limit () =
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let events =
+    match filter with Some f -> List.filter f events | None -> events
+  in
+  let events =
+    List.concat_map
+      (fun event -> Event.expand_recurrences event ~from ~to_)
+      events
+  in
+  let sorted_events = List.sort comparator events in
+  Ok
+    (match limit with Some n when n > 0 -> take n events | _ -> sorted_events)

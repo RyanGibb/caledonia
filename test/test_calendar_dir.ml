@@ -39,29 +39,21 @@ let test_get_collection ~fs () =
   | Error `Not_found -> Alcotest.fail "Failed to find example collection"
   | Error (`Msg msg) -> Alcotest.fail ("Error getting collection: " ^ msg)
 
-let test_get_collections ~fs () =
+let test_get_events ~fs () =
   let calendar_dir =
     match Calendar_dir.create ~fs calendar_dir_path with
     | Ok dir -> dir
     | Error (`Msg msg) ->
         Alcotest.fail ("Calendar directory creation failed: " ^ msg)
   in
-  match Calendar_dir.get_collections ~fs calendar_dir with
-  | Ok collections ->
+  match Calendar_dir.get_events ~fs calendar_dir with
+  | Ok events ->
       Alcotest.(check int)
-        "Should find two collections" 2 (List.length collections);
-      Alcotest.(check bool)
-        "example should be in the results" true
-        (List.exists (fun (id, _) -> id = Collection.Col "example") collections);
-      Alcotest.(check bool)
-        "recurrence should be in the results" true
-        (List.exists
-           (fun (id, _) -> id = Collection.Col "recurrence")
-           collections);
+        "Should find two events" 32 (List.length events);
       ()
   | Error e ->
       let msg =
-        match e with `Msg m -> m | `Not_found -> "Collection not found"
+        match e with `Msg m -> m
       in
       Alcotest.fail ("Error getting collections: " ^ msg)
 
@@ -69,7 +61,7 @@ let calendar_tests fs =
   [
     ("list collections", `Quick, test_list_collections ~fs);
     ("get collection", `Quick, test_get_collection ~fs);
-    ("get all collections", `Quick, test_get_collections ~fs);
+    ("get all collections", `Quick, test_get_events ~fs);
   ]
 
 let () =

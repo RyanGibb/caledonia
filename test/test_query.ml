@@ -20,13 +20,12 @@ let test_query_all ~fs () =
   in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
   match Query.query ~fs calendar_dir ~from ~to_ () with
-  | Ok instances ->
-      Alcotest.(check int) "Should find events" 792 (List.length instances);
+  | Ok events ->
+      Alcotest.(check int) "Should find events" 791 (List.length events);
       let test_event =
         List.find_opt
-          (fun instance ->
-            Option.get @@ Event.get_summary instance.Recur.event = "Test Event")
-          instances
+          (fun event -> Option.get @@ Event.get_summary event = "Test Event")
+          events
       in
       Alcotest.(check bool) "Should find Test Event" true (test_event <> None)
   | Error _ -> Alcotest.fail "Error querying events"
@@ -42,17 +41,16 @@ let test_recurrence_expansion ~fs () =
     Option.get @@ Ptime.of_date_time ((2025, 5, 31), ((23, 59, 59), 0))
   in
   match Query.query ~fs calendar_dir ~from ~to_ () with
-  | Ok instances ->
-      let recurring_instances =
+  | Ok events ->
+      let recurring_events =
         List.filter
-          (fun instance ->
-            Option.get @@ Event.get_summary instance.Recur.event
-            = "Recurring Event")
-          instances
+          (fun event ->
+            Option.get @@ Event.get_summary event = "Recurring Event")
+          events
       in
       Alcotest.(check bool)
-        "Should find multiple recurring event instances" true
-        (List.length recurring_instances > 1)
+        "Should find multiple recurring event events" true
+        (List.length recurring_events > 1)
   | Error _ -> Alcotest.fail "Error querying events"
 
 let test_text_search ~fs () =
@@ -65,35 +63,35 @@ let test_text_search ~fs () =
   in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       Alcotest.(check int)
-        "Should find event with 'Test' in summary" 2 (List.length instances)
+        "Should find event with 'Test' in summary" 2 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let filter = Query.location_contains "Weekly" in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       Alcotest.(check int)
-        "Should find event with 'Weekly' in location" 10 (List.length instances)
+        "Should find event with 'Weekly' in location" 10 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let filter =
     Query.and_filter
       [ Query.summary_contains "Test"; Query.description_contains "test" ]
   in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       Alcotest.(check int)
         "Should find events matching combined and criteria" 2
-        (List.length instances)
+        (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let filter =
     Query.or_filter
       [ Query.summary_contains "Test"; Query.location_contains "Weekly" ]
   in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       Alcotest.(check int)
         "Should find events matching combined or criteria" 12
-        (List.length instances)
+        (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   ()
 
@@ -108,34 +106,31 @@ let test_calendar_filter ~fs () =
   let collection = Collection.Col "example" in
   let filter = Query.in_collections [ collection ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       let all_match_calendar =
         List.for_all
-          (fun e ->
-            match Event.get_collection e.Recur.event with
-            | id -> id = collection)
-          instances
+          (fun e -> match Event.get_collection e with id -> id = collection)
+          events
       in
       Alcotest.(check bool)
         (Printf.sprintf "All events should be from calendar '%s'"
            (match collection with Col str -> str))
         true all_match_calendar;
-      Alcotest.(check int) "Should find events" 2 (List.length instances)
+      Alcotest.(check int) "Should find events" 2 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let collections = [ Collection.Col "example"; Collection.Col "recurrence" ] in
   let filter = Query.in_collections collections in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
-      Alcotest.(check int) "Should find events" 792 (List.length instances)
+  | Ok events ->
+      Alcotest.(check int) "Should find events" 791 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let filter =
     Query.in_collections [ Collection.Col "non-existent-calendar" ]
   in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
-  | Ok instances ->
+  | Ok events ->
       Alcotest.(check int)
-        "Should find 0 events for non-existent calendar" 0
-        (List.length instances)
+        "Should find 0 events for non-existent calendar" 0 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   ()
 
