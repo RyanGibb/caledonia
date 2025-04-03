@@ -14,7 +14,7 @@ val or_filter : filter list -> filter
 val not_filter : filter -> filter
 
 val query_without_recurrence :
-  fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
   Calendar_dir.t ->
   ?filter:filter ->
   ?comparator:Event.comparator ->
@@ -25,7 +25,7 @@ val query_without_recurrence :
     of events, or Error with a message. *)
 
 val query :
-  fs:[> Eio.Fs.dir_ty ] Eio.Path.t ->
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
   Calendar_dir.t ->
   ?filter:filter ->
   from:Ptime.t option ->

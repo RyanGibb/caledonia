@@ -134,10 +134,10 @@ let test_calendar_filter ~fs () =
   | Error _ -> Alcotest.fail "Error querying events");
   ()
 
-let test_events =
+let test_events ~fs =
   (* Create a test event with specific text in all fields *)
   let create_test_event ~collection ~summary ~description ~location ~start =
-    Event.create ~summary ~start
+    Event.create ~fs ~calendar_dir_path ~summary ~start
       ?description:(if description = "" then None else Some description)
       ?location:(if location = "" then None else Some location)
       (Collection.Col collection)
@@ -171,11 +171,13 @@ let contains_summary events summary =
     (fun e -> String.equal (Option.get @@ Event.get_summary e) summary)
     events
 
-let test_case_insensitive_search () =
+let test_case_insensitive_search ~fs () =
   (* Test lowercase query for an uppercase word *)
   let lowercase_filter = Query.summary_contains "important" in
   let matches =
-    List.filter (fun e -> Query.matches_filter e lowercase_filter) test_events
+    List.filter
+      (fun e -> Query.matches_filter e lowercase_filter)
+      (test_events ~fs)
   in
   Alcotest.(check bool)
     "Lowercase query should match uppercase text in summary" true
@@ -183,18 +185,22 @@ let test_case_insensitive_search () =
   (* Test uppercase query for a lowercase word *)
   let uppercase_filter = Query.description_contains "WEEKLY" in
   let matches =
-    List.filter (fun e -> Query.matches_filter e uppercase_filter) test_events
+    List.filter
+      (fun e -> Query.matches_filter e uppercase_filter)
+      (test_events ~fs)
   in
   Alcotest.(check bool)
     "Uppercase query should match lowercase text in description" true
     (contains_summary matches "Project Meeting")
 
-let test_partial_word_matching () =
+let test_partial_word_matching ~fs () =
   (* Test searching for part of a word *)
   let partial_filter = Query.summary_contains "Conf" in
   (* Should match "Conference" *)
   let matches =
-    List.filter (fun e -> Query.matches_filter e partial_filter) test_events
+    List.filter
+      (fun e -> Query.matches_filter e partial_filter)
+      (test_events ~fs)
   in
   Alcotest.(check bool)
     "Partial query should match full word in summary" true
@@ -203,7 +209,9 @@ let test_partial_word_matching () =
   let partial_filter = Query.description_contains "nation" in
   (* Should match "International" *)
   let matches =
-    List.filter (fun e -> Query.matches_filter e partial_filter) test_events
+    List.filter
+      (fun e -> Query.matches_filter e partial_filter)
+      (test_events ~fs)
   in
   Alcotest.(check bool)
     "Partial query should match within word in description" true
@@ -213,14 +221,14 @@ let test_partial_word_matching () =
     "Partial query should match within word in description" true
     (contains_summary matches "Conference Call")
 
-let test_boolean_logic () =
+let test_boolean_logic ~fs () =
   (* Test AND filter *)
   let and_filter =
     Query.and_filter
       [ Query.summary_contains "Meeting"; Query.description_contains "project" ]
   in
   let matches =
-    List.filter (fun e -> Query.matches_filter e and_filter) test_events
+    List.filter (fun e -> Query.matches_filter e and_filter) (test_events ~fs)
   in
   Alcotest.(check int)
     "AND filter should match events with both terms" 2
@@ -232,7 +240,7 @@ let test_boolean_logic () =
       [ Query.summary_contains "Workshop"; Query.summary_contains "Conference" ]
   in
   let matches =
-    List.filter (fun e -> Query.matches_filter e or_filter) test_events
+    List.filter (fun e -> Query.matches_filter e or_filter) (test_events ~fs)
   in
   Alcotest.(check int)
     "OR filter should match events with either term"
@@ -242,7 +250,7 @@ let test_boolean_logic () =
   (* Test NOT filter *)
   let not_filter = Query.not_filter (Query.summary_contains "Meeting") in
   let matches =
-    List.filter (fun e -> Query.matches_filter e not_filter) test_events
+    List.filter (fun e -> Query.matches_filter e not_filter) (test_events ~fs)
   in
   Alcotest.(check int)
     "NOT filter should match events without the term"
@@ -265,14 +273,16 @@ let test_boolean_logic () =
       ]
   in
   let matches =
-    List.filter (fun e -> Query.matches_filter e complex_filter) test_events
+    List.filter
+      (fun e -> Query.matches_filter e complex_filter)
+      (test_events ~fs)
   in
   Alcotest.(check int)
     "Complex filter should match correctly"
     3 (* Three events should match the complex criteria *)
     (List.length matches)
 
-let test_cross_field_search () =
+let test_cross_field_search ~fs () =
   (* Search for a term that appears in multiple fields across different events *)
   let term_filter =
     Query.or_filter
@@ -283,7 +293,7 @@ let test_cross_field_search () =
       ]
   in
   let matches =
-    List.filter (fun e -> Query.matches_filter e term_filter) test_events
+    List.filter (fun e -> Query.matches_filter e term_filter) (test_events ~fs)
   in
   Alcotest.(check int)
     "Cross-field search should find all occurrences"
@@ -299,7 +309,7 @@ let test_cross_field_search () =
       ]
   in
   let matches =
-    List.filter (fun e -> Query.matches_filter e term_filter) test_events
+    List.filter (fun e -> Query.matches_filter e term_filter) (test_events ~fs)
   in
   Alcotest.(check int)
     "Cross-field search should find all occurrences of 'conference'"
@@ -312,10 +322,10 @@ let query_tests fs =
     ("recurrence expansion", `Quick, test_recurrence_expansion ~fs);
     ("text search", `Quick, test_text_search ~fs);
     ("calendar filter", `Quick, test_calendar_filter ~fs);
-    ("case insensitive search", `Quick, test_case_insensitive_search);
-    ("partial word matching", `Quick, test_partial_word_matching);
-    ("boolean logic filters", `Quick, test_boolean_logic);
-    ("cross-field searching", `Quick, test_cross_field_search);
+    ("case insensitive search", `Quick, test_case_insensitive_search ~fs);
+    ("partial word matching", `Quick, test_partial_word_matching ~fs);
+    ("boolean logic filters", `Quick, test_boolean_logic ~fs);
+    ("cross-field searching", `Quick, test_cross_field_search ~fs);
   ]
 
 let () =

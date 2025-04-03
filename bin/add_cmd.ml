@@ -21,8 +21,9 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
   in
   let collection = Collection.Col collection in
   let event =
-    Event.create ~summary ~start ?end_ ?location ?description ?recurrence
-      collection
+    Event.create ~fs
+      ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
+      ~summary ~start ?end_ ?location ?description ?recurrence collection
   in
   let* _ = Calendar_dir.add_event ~fs calendar_dir event in
   Printf.printf "Event created with ID: %s\n" (Event.get_id event);

@@ -4,7 +4,7 @@ type event_id = string
 
 type t = {
   collection : Collection.t;
-  file_name : string;
+  file : Eio.Fs.dir_ty Eio.Path.t;
   event : event;
   calendar : calendar;
 }
@@ -17,10 +17,17 @@ let generate_uuid () =
 
 let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 
-let create ~summary ~start ?end_ ?location ?description ?recurrence collection =
+let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
+    ?end_ ?location ?description ?recurrence collection =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
+  let file =
+    Eio.Path.(
+      fs / calendar_dir_path
+      / (match collection with Collection.Col s -> s)
+      / file_name)
+  in
   let dtstart = (Params.empty, start) in
   let dtend_or_duration = end_ in
   let rrule = Option.map (fun r -> (Params.empty, r)) recurrence in
@@ -52,7 +59,7 @@ let create ~summary ~start ?end_ ?location ?description ?recurrence collection =
     let components = [ `Event event ] in
     (props, components)
   in
-  { collection; file_name; event; calendar }
+  { collection; file; event; calendar }
 
 let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let now = Ptime_clock.now () in
@@ -106,15 +113,14 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
     }
   in
   let collection = t.collection in
-  let file_name = t.file_name in
+  let file = t.file in
   let calendar = t.calendar in
-  { collection; file_name; event; calendar }
+  { collection; file; event; calendar }
 
-let events_of_icalendar collection ~file_name calendar =
+let events_of_icalendar collection ~file calendar =
   List.filter_map
     (function
-      | `Event event -> Some { collection; file_name; event; calendar }
-      | _ -> None)
+      | `Event event -> Some { collection; file; event; calendar } | _ -> None)
     (snd calendar)
 
 let to_ical_event t = t.event
@@ -193,12 +199,7 @@ let get_description t =
 
 let get_recurrence t = Option.map (fun r -> snd r) t.event.rrule
 let get_collection t = t.collection
-
-let get_file_path ~fs ~calendar_dir_path t =
-  Eio.Path.(
-    fs / calendar_dir_path
-    / (match t.collection with Col s -> s)
-    / t.file_name)
+let get_file t = t.file
 
 let get_recurrence_ids t =
   let _, recurrence_ids =
@@ -251,9 +252,9 @@ let chain comp1 comp2 e1 e2 =
 
 let clone_with_event t event =
   let collection = t.collection in
-  let file_name = t.file_name in
+  let file = t.file in
   let calendar = t.calendar in
-  { collection; file_name; event; calendar }
+  { collection; file; event; calendar }
 
 let expand_recurrences ~from ~to_ event =
   let rule = get_recurrence event in

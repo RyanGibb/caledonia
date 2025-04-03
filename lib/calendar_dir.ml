@@ -53,8 +53,7 @@ let load_events collection collection_path file_name =
       try
         let content = Eio.Path.load file in
         match parse content with
-        | Ok calendar ->
-            Event.events_of_icalendar ~file_name collection calendar
+        | Ok calendar -> Event.events_of_icalendar ~file collection calendar
         | Error err ->
             Printf.eprintf "Failed to parse %s: %s\n%!" file_path err;
             []
@@ -109,22 +108,19 @@ let get_events ~fs calendar_dir =
 
 let add_event ~fs calendar_dir event =
   let collection = Event.get_collection event in
-  let file_path =
-    Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
-  in
+  let file = Event.get_file event in
   let collection_path = get_collection_path ~fs calendar_dir collection in
   let* () = ensure_dir collection_path in
   let calendar = Event.to_ical_calendar event in
   let content = Icalendar.to_ics ~cr:true calendar in
   let* _ =
     try
-      Eio.Path.save ~create:(`Or_truncate 0o644) file_path content;
+      Eio.Path.save ~create:(`Or_truncate 0o644) file content;
       Ok ()
     with Eio.Exn.Io _ as exn ->
       Error
         (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file_path) Eio.Exn.pp
-              exn))
+           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
   in
   calendar_dir.collections <-
     CollectionMap.add collection
@@ -142,9 +138,7 @@ let edit_event ~fs calendar_dir event =
   let collection_path = get_collection_path ~fs calendar_dir collection in
   let* () = ensure_dir collection_path in
   let ical_event = Event.to_ical_event event in
-  let file_path =
-    Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
-  in
+  let file = Event.get_file event in
   let existing_props, existing_components = Event.to_ical_calendar event in
   let calendar =
     (* Replace the event with our updated version *)
@@ -163,13 +157,12 @@ let edit_event ~fs calendar_dir event =
   let content = Icalendar.to_ics ~cr:true calendar in
   let* _ =
     try
-      Eio.Path.save ~create:(`Or_truncate 0o644) file_path content;
+      Eio.Path.save ~create:(`Or_truncate 0o644) file content;
       Ok ()
     with Eio.Exn.Io _ as exn ->
       Error
         (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file_path) Eio.Exn.pp
-              exn))
+           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
   in
   calendar_dir.collections <-
     CollectionMap.add collection
@@ -187,9 +180,7 @@ let delete_event ~fs calendar_dir event =
   let event_id = Event.get_id event in
   let collection_path = get_collection_path ~fs calendar_dir collection in
   let* () = ensure_dir collection_path in
-  let file_path =
-    Event.get_file_path ~fs ~calendar_dir_path:calendar_dir.path event
-  in
+  let file = Event.get_file event in
   let existing_props, existing_components = Event.to_ical_calendar event in
   let other_events = ref false in
   let calendar =
@@ -213,14 +204,13 @@ let delete_event ~fs calendar_dir event =
   let* _ =
     try
       (match !other_events with
-      | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file_path content
-      | false -> Eio.Path.unlink file_path);
+      | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file content
+      | false -> Eio.Path.unlink file);
       Ok ()
     with Eio.Exn.Io _ as exn ->
       Error
         (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file_path) Eio.Exn.pp
-              exn))
+           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
   in
   calendar_dir.collections <-
     CollectionMap.add collection

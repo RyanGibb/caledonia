@@ -9,6 +9,8 @@ type t
 type date_error = [ `Msg of string ]
 
 val create :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  calendar_dir_path:string ->
   summary:string ->
   start:Icalendar.date_or_datetime ->
   ?end_:
@@ -41,7 +43,7 @@ val edit :
 (** Edit an existing event. *)
 
 val events_of_icalendar :
-  Collection.t -> file_name:string -> Icalendar.calendar -> t list
+  Collection.t -> file:Eio.Fs.dir_ty Eio.Path.t -> Icalendar.calendar -> t list
 
 val to_ical_event : t -> Icalendar.event
 val to_ical_calendar : t -> Icalendar.calendar
@@ -69,10 +71,7 @@ val get_location : t -> string option
 val get_description : t -> string option
 val get_recurrence : t -> Icalendar.recurrence option
 val get_collection : t -> Collection.t
-
-val get_file_path :
-  fs:'a Eio.Path.t -> calendar_dir_path:string -> t -> 'a Eio.Path.t
-
+val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
 val get_recurrence_ids : t -> Icalendar.event list
 
 type comparator = t -> t -> int

@@ -5,19 +5,9 @@ type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
 (** Functions for formatting specific event types *)
 val format_event :
-  fs:'a Eio.Path.t ->
-  calendar_dir:Calendar_dir.t ->
-  ?format:format ->
-  ?tz:Timedesc.Time_zone.t ->
-  Event.t ->
-  string
+  ?format:format -> ?tz:Timedesc.Time_zone.t -> Event.t -> string
 (** Format a single event, optionally using the specified timezone *)
 
 val format_events :
-  fs:'a Eio.Path.t ->
-  calendar_dir:Calendar_dir.t ->
-  ?format:format ->
-  ?tz:Timedesc.Time_zone.t ->
-  Event.t list ->
-  string
+  ?format:format -> ?tz:Timedesc.Time_zone.t -> Event.t list -> string
 (** Format a list of events, optionally using the specified timezone *)
