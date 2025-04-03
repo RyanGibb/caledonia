@@ -42,22 +42,30 @@ let list_calendar_names ~fs calendar_dir =
          (Fmt.str "Failed to list calendar directory %s: %a" calendar_dir.path
             Eio.Exn.pp exn))
 
-let load_events calendar_name calendar_name_path file_name =
-  let file = Eio.Path.(calendar_name_path / file_name) in
-  let _, file_path = file in
-  match Filename.check_suffix file_name ".ics" with
-  | false -> []
-  | true -> (
-      try
-        let content = Eio.Path.load file in
-        match parse content with
-        | Ok calendar -> Event.events_of_icalendar ~file calendar_name calendar
-        | Error err ->
-            Printf.eprintf "Failed to parse %s: %s\n%!" file_path err;
-            []
-      with Eio.Exn.Io _ as exn ->
-        Fmt.epr "Failed to read file %s: %a\n%!" file_path Eio.Exn.pp exn;
-        [])
+let rec load_events_recursive calendar_name dir_path =
+  try
+    Eio.Path.read_dir dir_path
+    |> List.fold_left
+      (fun acc name ->
+        let path = Eio.Path.(dir_path / name) in
+        if Eio.Path.is_directory path then
+          acc @ load_events_recursive calendar_name path
+        else if Filename.check_suffix name ".ics" then
+          try
+            let content = Eio.Path.load path in
+            match parse content with
+            | Ok calendar -> acc @ Event.events_of_icalendar ~file:path calendar_name calendar
+            | Error err ->
+                Printf.eprintf "Failed to parse %s: %s\n%!" (snd path) err;
+                acc
+          with Eio.Exn.Io _ as exn ->
+            Fmt.epr "Failed to read file %s: %a\n%!" (snd path) Eio.Exn.pp exn;
+            acc
+        else acc)
+      []
+  with Eio.Exn.Io _ as exn ->
+    Fmt.epr "Failed to read directory %s: %a\n%!" (snd dir_path) Eio.Exn.pp exn;
+    []
 
 let get_calendar_events ~fs calendar_dir calendar_name =
   match CalendarMap.find_opt calendar_name calendar_dir.calendar_names with
@@ -69,11 +77,7 @@ let get_calendar_events ~fs calendar_dir calendar_name =
       if not (Eio.Path.is_directory calendar_name_path) then Error `Not_found
       else
         try
-          let files = Eio.Path.read_dir calendar_name_path in
-          let events =
-            List.flatten
-            @@ List.map (load_events calendar_name calendar_name_path) files
-          in
+          let events = load_events_recursive calendar_name calendar_name_path in
           calendar_dir.calendar_names <-
             CalendarMap.add calendar_name events calendar_dir.calendar_names;
           Ok events
