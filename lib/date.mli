@@ -117,7 +117,14 @@ val parse_date :
     default_timezone.
 
     Supported formats:
-    - ISO format: "YYYY-MM-DD"
+    - ISO format:
+    - "YYYY-MM-DD" (full date)
+    - "YYYY-MM" (partial date)
+    - For --from: defaults to first day of month
+    - For --to: defaults to last day of month
+    - "YYYY" (partial date)
+    - For --from: defaults to January 1st of year
+    - For --to: defaults to December 31st of year
     - Relative expressions:
     - "today" - Current day
     - "tomorrow" - Next day

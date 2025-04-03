@@ -2,8 +2,8 @@ open Cmdliner
 open Caledonia_lib
 open Query_args
 
-let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
-    ?timezone ~sort ~fs calendar_dir =
+let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
+    ~week ~month ?timezone ~sort ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let tz = Query_args.parse_timezone ~timezone in
   let* from, to_ =
@@ -50,9 +50,9 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
             Ok (Some today_date, one_month_later))
   in
   let filter =
-    match calendar with
-    | Some calendar_name -> Some (Query.in_calendar_names [ calendar_name ])
-    | None -> None
+    match calendars with
+    | [] -> None
+    | calendar -> Some (Query.in_calendars calendar)
   in
   let comparator = Query_args.create_event_comparator sort in
   let* results =
@@ -63,11 +63,11 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
   Ok ()
 
 let cmd ~fs calendar_dir =
-  let run from_str to_str calendar count format today tomorrow week month
+  let run from_str to_str calendars count format today tomorrow week month
       timezone sort =
     match
-      run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week
-        ~month ?timezone ~sort ~fs calendar_dir
+      run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
+        ~week ~month ?timezone ~sort ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -84,34 +84,32 @@ let cmd ~fs calendar_dir =
   let man =
     [
       `S Manpage.s_description;
-      `P "List calendar events within a specified date range.";
-      `P "By default, events from today to one month from today are shown.";
-      `P "You can use date flags to show events for a specific time period.";
-      `P "You can also filter events by calendar using the --calendar flag.";
-      `P "Use the --sort option to control the sorting of results.";
+      `P
+        "List calendar events within a specified date range. By default, \
+         events from today to one month from today are shown. You can use date \
+         flags to show events for a specific time period, and filter events \
+         with the --sort option.";
+      `S Manpage.s_examples;
+      `I ("List all events for today:", "caled list --today");
+      `I ("List all events for tomorrow:", "caled list --tomorrow");
+      `I ("List all events for the current week:", "caled list --week");
+      `I ("List all events for the current month:", "caled list --month");
+      `I
+        ( "List events within a specific date range:",
+          "caled list --from 2025-03-27 --to 2025-04-01" );
+      `I ("List events from a specific calendar:", "caled list --calendar work");
+      `I ("List events in JSON format:", "caled list --format json");
+      `I ("Limit the number of events shown:", "caled list --count 5");
+      `I
+        ( "Sort by multiple fields (start time and summary):",
+          "caled list --sort start --sort summary" );
+      `I
+        ( "Sort by calendar name in descending order:",
+          "caled list --sort calendar:desc" );
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries
-    @ [
-        `S Manpage.s_examples;
-        `I ("List all events for today:", "caled list --today");
-        `I ("List all events for tomorrow:", "caled list --tomorrow");
-        `I ("List all events for the current week:", "caled list --week");
-        `I ("List all events for the current month:", "caled list --month");
-        `I
-          ( "List events within a specific date range:",
-            "caled list --from 2025-03-27 --to 2025-04-01" );
-        `I
-          ("List events from a specific calendar:", "caled list --calendar work");
-        `I ("List events in JSON format:", "caled list --format json");
-        `I ("Limit the number of events shown:", "caled list --count 5");
-        `I
-          ( "Sort by multiple fields (start time and summary):",
-            "caled list --sort start --sort summary" );
-        `I
-          ( "Sort by calendar name in descending order:",
-            "caled list --sort calendar:desc" );
-      ]
+    @ [ `S Manpage.s_see_also ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]

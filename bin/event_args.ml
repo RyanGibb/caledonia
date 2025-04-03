@@ -80,14 +80,21 @@ let recur_arg =
 let date_format_manpage_entries =
   [
     `S "DATE FORMATS";
-    `P "Relative date formats for --date / -d and --end-date / -e:";
+    `P
+      "The following are the possible date formats for the --date and \
+       --end-date command line parameters. Note the value is dependent on \
+       --date / --end-date, so --date 2025-03 --end-date 2025-03 will span the \
+       month of March.";
+    `I ("YYYY-MM-DD", "Specific date (e.g., 2025-3-27, zero-padding optional)");
+    `I ("YYYY-MM", "Start/end of specific month (e.g., 2025-3 for March 2025)");
+    `I ("YYYY", "Start/end of specific year (e.g., 2025)");
     `I ("today", "Current day");
     `I ("tomorrow", "Next day");
     `I ("yesterday", "Previous day");
-    `I ("this-week", "Start of current week");
-    `I ("next-week", "Start of next week");
-    `I ("this-month", "Start of current month");
-    `I ("next-month", "Start of next month");
+    `I ("this-week", "Start/end of current week");
+    `I ("next-week", "Start/end of next week");
+    `I ("this-month", "Start/end of current month");
+    `I ("next-month", "Start/end of next month");
     `I ("+Nd", "N days from today (e.g., +7d for a week from today)");
     `I ("-Nd", "N days before today (e.g., -7d for a week ago)");
     `I ("+Nw", "N weeks from today (e.g., +4w for 4 weeks from today)");
@@ -345,3 +352,38 @@ let parse_recurrence recur =
       let recurrence = (f, limit, !interval, !by_parts) in
       Ok recurrence
   | None -> Error (`Msg "FREQ is required in recurrence rule")
+
+let recurrence_format_manpage_entries =
+  [
+    `S "RECURRENCE";
+    `P "Recurrence rule in iCalendar RFC5545 format. The FREQ part is required.";
+    `I ("FREQ=<frequency>", "DAILY, WEEKLY, MONTHLY, or YEARLY (required)");
+    `I
+      ( "COUNT=<number>",
+        "Limit to this many occurrences (optional, cannot be used with UNTIL)"
+      );
+    `I
+      ( "UNTIL=<date>",
+        "Repeat until this date (optional, cannot be used with COUNT)" );
+    `I
+      ( "INTERVAL=<number>",
+        "Interval between occurrences, e.g., 2 for every other (optional)" );
+    `I
+      ( "BYDAY=<dayspec>",
+        "Specific days, e.g., MO,WE,FR or 1MO (first Monday) (optional)" );
+    `I
+      ( "BYMONTHDAY=<daynum>",
+        "Day of month, e.g., 1,15 or -1 (last day) (optional)" );
+    `I
+      ( "BYMONTH=<monthnum>",
+        "Month number, e.g., 1,6,12 for Jan,Jun,Dec (optional)" );
+    `P "Examples:";
+    `I ("FREQ=DAILY;COUNT=5", "Daily for 5 occurrences");
+    `I ("FREQ=WEEKLY;INTERVAL=2", "Every other week indefinitely");
+    `I ("FREQ=WEEKLY;BYDAY=MO,WE,FR", "Every Monday, Wednesday, Friday");
+    `I ("FREQ=MONTHLY;BYDAY=1MO", "First Monday of every month");
+    `I
+      ( "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1",
+        "Every January 1st (New Year's Day)" );
+    `I ("FREQ=MONTHLY;BYMONTHDAY=-1", "Last day of every month");
+  ]

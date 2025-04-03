@@ -104,7 +104,7 @@ let test_calendar_filter ~fs () =
   in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
   let calendar_name = "example" in
-  let filter = Query.in_calendar_names [ calendar_name ] in
+  let filter = Query.in_calendars [ calendar_name ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       let all_match_calendar =
@@ -119,12 +119,12 @@ let test_calendar_filter ~fs () =
       Alcotest.(check int) "Should find events" 2 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
   let calendar_names = [ "example"; "recurrence" ] in
-  let filter = Query.in_calendar_names calendar_names in
+  let filter = Query.in_calendars calendar_names in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       Alcotest.(check int) "Should find events" 791 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
-  let filter = Query.in_calendar_names [ "non-existent-calendar" ] in
+  let filter = Query.in_calendars [ "non-existent-calendar" ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       Alcotest.(check int)

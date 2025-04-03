@@ -193,10 +193,107 @@ let convert_relative_date_formats ?(tz = !default_timezone ()) ~today ~tomorrow
 
 let ( let* ) = Result.bind
 
-(* Parse a date string that could be ISO format or a relative expression *)
+let parse_full_iso_datet ~tz expr =
+  let regex = Re.Pcre.regexp "^(\\d{4})-(\\d{1,2})-(\\d{1,2})$" in
+  if Re.Pcre.pmatch ~rex:regex expr then
+    let match_result = Re.Pcre.exec ~rex:regex expr in
+    let year = int_of_string (Re.Pcre.get_substring match_result 1) in
+    let month = int_of_string (Re.Pcre.get_substring match_result 2) in
+    let day = int_of_string (Re.Pcre.get_substring match_result 3) in
+    match Timedesc.Date.Ymd.make ~year ~month ~day with
+    | Ok date ->
+        let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+        let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
+        Some (Ok (timedesc_to_ptime dt))
+    | Error _ -> Some (Error (`Msg (Printf.sprintf "Invalid date: %s" expr)))
+  else None
+
+let parse_year_only ~tz expr parameter =
+  let regex = Re.Pcre.regexp "^(\\d{4})$" in
+  if Re.Pcre.pmatch ~rex:regex expr then
+    let match_result = Re.Pcre.exec ~rex:regex expr in
+    let year = int_of_string (Re.Pcre.get_substring match_result 1) in
+    match parameter with
+    | `From -> (
+        match Timedesc.Date.Ymd.make ~year ~month:1 ~day:1 with
+        | Ok date ->
+            let time = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+            let dt = Timedesc.of_date_and_time_exn ~tz date time in
+            Some (Ok (timedesc_to_ptime dt))
+        | Error _ ->
+            Some (Error (`Msg (Printf.sprintf "Invalid year: %s" expr))))
+    | `To -> (
+        match Timedesc.Date.Ymd.make ~year ~month:12 ~day:31 with
+        | Ok date ->
+            let time =
+              Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
+            in
+            let dt = Timedesc.of_date_and_time_exn ~tz date time in
+            Some (Ok (timedesc_to_ptime dt))
+        | Error _ ->
+            Some (Error (`Msg (Printf.sprintf "Invalid year: %s" expr))))
+  else None
+
+let parse_year_month ~tz expr parameter =
+  let regex = Re.Pcre.regexp "^(\\d{4})-(\\d{1,2})$" in
+  if Re.Pcre.pmatch ~rex:regex expr then
+    let match_result = Re.Pcre.exec ~rex:regex expr in
+    let year = int_of_string (Re.Pcre.get_substring match_result 1) in
+    let month = int_of_string (Re.Pcre.get_substring match_result 2) in
+    match parameter with
+    | `From -> (
+        match Timedesc.Date.Ymd.make ~year ~month ~day:1 with
+        | Ok date ->
+            let time = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+            let dt = Timedesc.of_date_and_time_exn ~tz date time in
+            Some (Ok (timedesc_to_ptime dt))
+        | Error _ ->
+            Some (Error (`Msg (Printf.sprintf "Invalid year-month: %s" expr))))
+    | `To -> (
+        let next_month = if month = 12 then 1 else month + 1 in
+        let next_month_year = if month = 12 then year + 1 else year in
+        match
+          Timedesc.Date.Ymd.make ~year:next_month_year ~month:next_month ~day:1
+        with
+        | Ok next_month_date ->
+            let last_day_of_month = Timedesc.Date.sub ~days:1 next_month_date in
+            let end_of_day =
+              Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
+            in
+            let dt =
+              Timedesc.of_date_and_time_exn ~tz last_day_of_month end_of_day
+            in
+            Some (Ok (timedesc_to_ptime dt))
+        | Error _ ->
+            Some (Error (`Msg (Printf.sprintf "Invalid year-month: %s" expr))))
+  else None
+
+let parse_relative ~tz expr parameter =
+  let regex = Re.Pcre.regexp "^([+-])(\\d+)([dwm])$" in
+  if Re.Pcre.pmatch ~rex:regex expr then
+    let match_result = Re.Pcre.exec ~rex:regex expr in
+    let sign = Re.Pcre.get_substring match_result 1 in
+    let num = int_of_string (Re.Pcre.get_substring match_result 2) in
+    let unit = Re.Pcre.get_substring match_result 3 in
+    let multiplier = if sign = "+" then 1 else -1 in
+    let value = num * multiplier in
+    let today = !get_today ~tz () in
+    match unit with
+    | "d" -> Some (Ok (add_days today value))
+    | "w" -> (
+        let date = add_weeks today value in
+        match parameter with
+        | `From -> Some (Ok (get_start_of_week date))
+        | `To -> Some (Ok (get_end_of_week date)))
+    | "m" -> (
+        let date = add_months today value in
+        match parameter with
+        | `From -> Some (Ok (get_start_of_month date))
+        | `To -> Some (Ok (get_end_of_month date)))
+    | _ -> Some (Error (`Msg (Printf.sprintf "Invalid date unit: %s" unit)))
+  else None
+
 let parse_date ?(tz = !default_timezone ()) expr parameter =
-  let iso_date_regex = Re.Pcre.regexp "^(\\d{4})-(\\d{2})-(\\d{2})$" in
-  let relative_regex = Re.Pcre.regexp "^([+-])(\\d+)([dwm])$" in
   match expr with
   | "today" -> Ok (!get_today ~tz ())
   | "tomorrow" -> Ok (add_days (!get_today ~tz ()) 1)
@@ -217,58 +314,16 @@ let parse_date ?(tz = !default_timezone ()) expr parameter =
       match parameter with
       | `From -> Ok (get_start_of_next_month ~tz ())
       | `To -> Ok (get_end_of_next_month ~tz ()))
-  | _ ->
-      (* Try to parse as ISO date *)
-      if Re.Pcre.pmatch ~rex:iso_date_regex expr then
-        let year =
-          int_of_string
-            (Re.Pcre.get_substring (Re.Pcre.exec ~rex:iso_date_regex expr) 1)
-        in
-        let month =
-          int_of_string
-            (Re.Pcre.get_substring (Re.Pcre.exec ~rex:iso_date_regex expr) 2)
-        in
-        let day =
-          int_of_string
-            (Re.Pcre.get_substring (Re.Pcre.exec ~rex:iso_date_regex expr) 3)
-        in
-        match Timedesc.Date.Ymd.make ~year ~month ~day with
-        | Ok date ->
-            let midnight =
-              Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 ()
-            in
-            let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
-            Ok (timedesc_to_ptime dt)
-        | Error _ -> Error (`Msg (Printf.sprintf "Invalid date: %s" expr))
-        (* Try to parse as relative expression +Nd, -Nd, etc. *)
-      else if Re.Pcre.pmatch ~rex:relative_regex expr then
-        let sign =
-          Re.Pcre.get_substring (Re.Pcre.exec ~rex:relative_regex expr) 1
-        in
-        let num =
-          int_of_string
-            (Re.Pcre.get_substring (Re.Pcre.exec ~rex:relative_regex expr) 2)
-        in
-        let unit =
-          Re.Pcre.get_substring (Re.Pcre.exec ~rex:relative_regex expr) 3
-        in
-        let multiplier = if sign = "+" then 1 else -1 in
-        let value = num * multiplier in
-        let today = !get_today ~tz () in
-        match unit with
-        | "d" -> Ok (add_days today value)
-        | "w" -> (
-            let date = add_weeks today value in
-            match parameter with
-            | `From -> Ok (get_start_of_week date)
-            | `To -> Ok (get_end_of_week date))
-        | "m" -> (
-            let date = add_months today value in
-            match parameter with
-            | `From -> Ok (get_start_of_month date)
-            | `To -> Ok (get_end_of_month date))
-        | _ -> Error (`Msg (Printf.sprintf "Invalid date unit: %s" unit))
-      else Error (`Msg (Printf.sprintf "Invalid date format: %s" expr))
+  | _ -> (
+      (* Option alternative operator *)
+      let ( |>? ) opt f = match opt with None -> f () | Some x -> Some x in
+      ( ( ( parse_full_iso_datet ~tz expr |>? fun () ->
+            parse_year_only ~tz expr parameter )
+        |>? fun () -> parse_year_month ~tz expr parameter )
+      |>? fun () -> parse_relative ~tz expr parameter )
+      |> function
+      | Some result -> result
+      | None -> Error (`Msg (Printf.sprintf "Invalid date format: %s" expr)))
 
 let parse_time str =
   try

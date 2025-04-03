@@ -19,7 +19,7 @@ let location_contains text event =
   | Some loc -> text_matches text loc
   | None -> false
 
-let in_calendar_names ids event =
+let in_calendars ids event =
   let id = Event.get_calendar_name event in
   List.exists (fun col -> col = id) ids
 

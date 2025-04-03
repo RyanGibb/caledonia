@@ -47,6 +47,12 @@ let test_parse_date () =
   test_expr "+1m" `To "2025-04-30";
   test_expr "2025-01-01" `From "2025-01-01";
   test_expr "2025-01-01" `To "2025-01-01";
+  test_expr "2025-01" `From "2025-01-01";
+  test_expr "2025-01" `To "2025-01-01";
+  test_expr "2025" `From "2025-01-01";
+  test_expr "2025" `To "2025-01-01";
+  test_expr "2025-3-1" `From "2025-03-01";
+  test_expr "2025-3-1" `To "2025-03-01";
   (try
      let _ = Query.parse_date "invalid-format" `From in
      Alcotest.fail "Should have raised an exception for invalid format"

@@ -34,16 +34,17 @@ let cmd ~fs calendar_dir =
     [
       `S Manpage.s_description;
       `P "Show detailed information about a specific event by its ID.";
-      `P
-        "You can find event IDs by using the `list` or `search` commands with \
-         the `id` output using `-o id`.";
-      `S Manpage.s_options;
+      `P "You can find event IDs by using the `list` or `search` commands.";
       `S Manpage.s_examples;
       `P "Show event details:";
       `P "  caled show 12345678-1234-5678-1234-567812345678";
       `P "Show event details in JSON format:";
       `P "  caled show 12345678-1234-5678-1234-567812345678 --format json";
+      `S Manpage.s_options;
     ]
   in
-  let info = Cmd.info "show" ~doc ~man in
+  let exit_info =
+    [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
+  in
+  let info = Cmd.info "show" ~doc ~man ~exits:exit_info in
   Cmd.v info term

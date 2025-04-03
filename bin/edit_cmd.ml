@@ -59,28 +59,30 @@ let cmd ~fs calendar_dir =
       `P
         "Specify the event ID as the first argument, and use options to change \
          event details.";
+      `S Manpage.s_examples;
+      `I
+        ( "Change the summary of an event:",
+          "caled edit 12345678-1234-5678-1234-567812345678 --summary \"New \
+           Title\"" );
+      `I
+        ( "Change the date and time:",
+          "caled edit 12345678-1234-5678-1234-567812345678 --date 2025-05-01 \
+           --time 15:30" );
+      `I
+        ( "Update the location:",
+          "caled edit 12345678-1234-5678-1234-567812345678 --location \
+           \"Conference Room B\"" );
+      `I
+        ( "Change the description:",
+          "caled edit 12345678-1234-5678-1234-567812345678 --description \
+           \"Updated agenda for the meeting\"" );
       `S Manpage.s_options;
     ]
-    @ date_format_manpage_entries
-    @ [
-        `S Manpage.s_examples;
-        `I
-          ( "Change the summary of an event:",
-            "caled edit 12345678-1234-5678-1234-567812345678 --summary \"New \
-             Title\"" );
-        `I
-          ( "Change the date and time:",
-            "caled edit 12345678-1234-5678-1234-567812345678 --date 2025-05-01 \
-             --time 15:30" );
-        `I
-          ( "Update the location:",
-            "caled edit 12345678-1234-5678-1234-567812345678 --location \
-             \"Conference Room B\"" );
-        `I
-          ( "Change the description:",
-            "caled edit 12345678-1234-5678-1234-567812345678 --description \
-             \"Updated agenda for the meeting\"" );
-      ]
+    @ date_format_manpage_entries @ recurrence_format_manpage_entries
+    @ [ `S Manpage.s_see_also ]
   in
-  let info = Cmd.info "edit" ~doc ~man in
+  let exit_info =
+    [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
+  in
+  let info = Cmd.info "edit" ~doc ~man ~exits:exit_info in
   Cmd.v info term

@@ -40,7 +40,12 @@ let cmd ~fs calendar_dir =
       `S Manpage.s_examples;
       `P "Delete an event:";
       `P "  caled delete 12345678-1234-5678-1234-567812345678";
+      `S Manpage.s_options;
     ]
+    @ [ `S Manpage.s_see_also ]
   in
-  let info = Cmd.info "delete" ~doc ~man in
+  let exit_info =
+    [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
+  in
+  let info = Cmd.info "delete" ~doc ~man ~exits:exit_info in
   Cmd.v info term

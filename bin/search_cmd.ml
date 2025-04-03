@@ -2,7 +2,7 @@ open Cmdliner
 open Caledonia_lib
 open Query_args
 
-let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
+let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
     ~location ~id ~format ~today ~tomorrow ~week ~month ~recurring
     ~non_recurring ?timezone ~sort ~fs calendar_dir =
   let ( let* ) = Result.bind in
@@ -46,9 +46,8 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
         | None, None -> Ok (None, Date.to_end_of_day max_date))
   in
   (match calendar with
-  | Some calendar_name ->
-      filters := Query.in_calendar_names [ calendar_name ] :: !filters
-  | None -> ());
+  | [] -> ()
+  | calendars -> filters := Query.in_calendars calendars :: !filters);
   (match query_text with
   | Some text ->
       if summary then filters := Query.summary_contains text :: !filters;
@@ -79,7 +78,9 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
   Ok ()
 
 let query_text_arg =
-  let doc = "Text to search for in events (summary, description, location)" in
+  let doc =
+    "Text to search for in the fields summary, description, and/or location."
+  in
   Arg.(value & pos 0 (some string) None & info [] ~docv:"TEXT" ~doc)
 
 let summary_arg =
@@ -107,13 +108,13 @@ let id_arg =
   Arg.(value & opt (some string) None & info [ "id"; "i" ] ~docv:"ID" ~doc)
 
 let cmd ~fs calendar_dir =
-  let run query_text from_str to_str calendar count format summary description
+  let run query_text from_str to_str calendars count format summary description
       location id today tomorrow week month recurring non_recurring timezone
       sort =
     match
-      run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
-        ~location ~id ~format ~today ~tomorrow ~week ~month ~recurring
-        ~non_recurring ?timezone ~sort ~fs calendar_dir
+      run ?from_str ?to_str ~calendar:calendars ?count ?query_text ~summary
+        ~description ~location ~id ~format ~today ~tomorrow ~week ~month
+        ~recurring ~non_recurring ?timezone ~sort ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -133,63 +134,50 @@ let cmd ~fs calendar_dir =
       `S Manpage.s_description;
       `P
         "Search calendar events for text in summary, description, or location \
-         fields.";
-      `P
-        "By default, the search looks across all text fields in all events \
-         regardless of date.";
-      `P
-        "You can narrow the search to a specific date range with date flags or \
-         --from and --to.";
-      `P
-        "You can specify specific fields to search in using the --summary, \
-         --description, or --location flags.";
-      `P
-        "You can limit results to only recurring or non-recurring events using \
-         the --recurring or --non-recurring flags.";
-      `P "Use the --sort option to control the sorting of results.";
-      `P
-        "The search text is optional if you're using other filters. For \
-         example, you can find all recurring events without specifying any \
-         search text.";
+         fields. By default, the search looks across all text fields in all \
+         events regardless of date. You can specify specific fields to search \
+         in using the --summary, --description, or --location flags. You can \
+         use date flags to show events for a specific time period, and filter \
+         events with the --sort option.\n\
+        \        The search text is optional, so you search events according \
+         to other query criteria.";
+      `S Manpage.s_examples;
+      `I ("Search for 'meeting' in all events:", "caled search meeting");
+      `I
+        ( "Search for 'interview' in event summaries only:",
+          "caled search --summary interview" );
+      `I
+        ( "Search for 'conference' in a specific calendar:",
+          "caled search --calendar work conference" );
+      `I
+        ( "Search for 'workshop' in event descriptions for today only:",
+          "caled search --description --today workshop" );
+      `I
+        ( "Search for 'project' in events this month:",
+          "caled search --month project" );
+      `I
+        ( "Search for 'workshop' in event descriptions within a date range:",
+          "caled search --description --from 2025-03-27 --to 2025-04-01 \
+           workshop" );
+      `I
+        ("Search for recurring events only:", "caled search --recurring meeting");
+      `I
+        ( "Search for non-recurring events only:",
+          "caled search --non-recurring appointment" );
+      `I ("Find all recurring events:", "caled search --recurring");
+      `I
+        ( "Find all events in a specific calendar:",
+          "caled search --calendar work" );
+      `I
+        ( "Sort results by location and then summary:",
+          "caled search --sort location --sort summary" );
+      `I
+        ( "Sort results by end time in descending order:",
+          "caled search --sort end:desc" );
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries
-    @ [
-        `S Manpage.s_examples;
-        `I ("Search for 'meeting' in all events:", "caled search meeting");
-        `I
-          ( "Search for 'interview' in event summaries only:",
-            "caled search --summary interview" );
-        `I
-          ( "Search for 'conference' in a specific calendar:",
-            "caled search --calendar work conference" );
-        `I
-          ( "Search for 'workshop' in event descriptions for today only:",
-            "caled search --description --today workshop" );
-        `I
-          ( "Search for 'project' in events this month:",
-            "caled search --month project" );
-        `I
-          ( "Search for 'workshop' in event descriptions within a date range:",
-            "caled search --description --from 2025-03-27 --to 2025-04-01 \
-             workshop" );
-        `I
-          ( "Search for recurring events only:",
-            "caled search --recurring meeting" );
-        `I
-          ( "Search for non-recurring events only:",
-            "caled search --non-recurring appointment" );
-        `I ("Find all recurring events:", "caled search --recurring");
-        `I
-          ( "Find all events in a specific calendar:",
-            "caled search --calendar work" );
-        `I
-          ( "Sort results by location and then summary:",
-            "caled search --sort location --sort summary" );
-        `I
-          ( "Sort results by end time in descending order:",
-            "caled search --sort end:desc" );
-      ]
+    @ [ `S Manpage.s_see_also ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]
