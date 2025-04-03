@@ -44,7 +44,8 @@ let end_time_arg =
 let timezone_arg =
   let doc =
     "Timezone to add events to (e.g., 'America/New_York', 'UTC', \
-     'Europe/London'). If not specified, will use the local timezone."
+     'Europe/London'). If not specified, will use the local timezone. For a \
+     floating time (always at whatever the sytem time is), use 'FLOATING'."
   in
   Arg.(
     value
@@ -133,6 +134,17 @@ let parse_start ~start_date ~start_time ~timezone =
       | Some start_time -> (
           match timezone with
           | None ->
+              let* tzid =
+                match Timedesc.Time_zone.local () with
+                | Some tz -> Ok (Timedesc.Time_zone.name tz)
+                | None -> Error (`Msg "Failed to get system timezone")
+              in
+              let* datetime =
+                Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
+                  ~time:start_time `From
+              in
+              Ok (Some (`Datetime (`With_tzid (datetime, (false, tzid)))))
+          | Some "FLOATING" ->
               let* datetime =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
                   ~time:start_time `From
@@ -145,13 +157,9 @@ let parse_start ~start_date ~start_time ~timezone =
               in
               Ok (Some (`Datetime (`Utc datetime)))
           | Some tzid ->
-              let* tz =
-                match Timedesc.Time_zone.make tzid with
-                | Some tz_obj -> Ok tz_obj
-                | None -> Error (`Msg ("Invalid timezone: " ^ tzid))
-              in
               let* datetime =
-                Date.parse_date_time ~tz ~date:start_date ~time:start_time `From
+                Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
+                  ~time:start_time `From
               in
               Ok (Some (`Datetime (`With_tzid (datetime, (false, tzid)))))))
 
@@ -189,6 +197,21 @@ let parse_end ~end_date ~end_time ~timezone ~end_timezone =
       | Some end_time -> (
           match (timezone, end_timezone) with
           | None, None ->
+              let* tzid =
+                match Timedesc.Time_zone.local () with
+                | Some tz -> Ok (Timedesc.Time_zone.name tz)
+                | None -> Error (`Msg "Failed to get system timezone")
+              in
+              let* datetime =
+                Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:end_date
+                  ~time:end_time `From
+              in
+              Ok
+                (Some
+                   (`Dtend
+                      ( Icalendar.Params.empty,
+                        `Datetime (`With_tzid (datetime, (false, tzid))) )))
+          | _, Some "FLOATING" | Some "FLOATING", None ->
               let* datetime =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:end_date
                   ~time:end_time `From
@@ -205,15 +228,10 @@ let parse_end ~end_date ~end_time ~timezone ~end_timezone =
                 (Some
                    (`Dtend (Icalendar.Params.empty, `Datetime (`Utc datetime))))
           | _, Some tzid | Some tzid, _ ->
-              let* tz =
-                match Timedesc.Time_zone.make tzid with
-                | Some tz_obj -> Ok tz_obj
-                | None -> Error (`Msg ("Invalid timezone: " ^ tzid))
-              in
               let* datetime =
-                Date.parse_date_time ~tz ~date:end_date ~time:end_time `From
+                Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:end_date
+                  ~time:end_time `From
               in
-
               Ok
                 (Some
                    (`Dtend
