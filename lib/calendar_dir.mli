@@ -1,8 +1,7 @@
-(** Functions for managing calendar directories with Collection.ts of .ics files
-*)
+(** Functions for managing calendar directories with strings of .ics files *)
 
 type t
-(** A directory of Collection.ts, where each collection is a subdirectory
+(** A directory of strings, where each calendar_name is a subdirectory
     containing .ics files *)
 
 val create :
@@ -11,25 +10,23 @@ val create :
     calendar_dir if successful, or Error with a message if the directory cannot
     be created or accessed. *)
 
-val list_collections :
-  fs:Eio.Fs.dir_ty Eio.Path.t ->
-  t ->
-  (Collection.t list, [> `Msg of string ]) result
-(** List available Collection.ts in the calendar_dir. Returns Ok with the list
-    of Collection.t names if successful, or Error with a message if the
-    directory cannot be read. *)
+val list_calendar_names :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (string list, [> `Msg of string ]) result
+(** List available strings in the calendar_dir. Returns Ok with the list of
+    string names if successful, or Error with a message if the directory cannot
+    be read. *)
 
-val get_collection :
+val get_calendar_events :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
   t ->
-  Collection.t ->
+  string ->
   (Event.t list, [> `Msg of string | `Not_found ]) result
-(** Get all calendar files in a Collection.t. If the collection doesn't exist in
+(** Get all calendar files in a string. If the calendar_name doesn't exist in
     the cache, it will be loaded from disk. *)
 
 val get_events :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (Event.t list, [> `Msg of string ]) result
-(** Get all events in all collections. This will load any Collection.ts that
+(** Get all events in all calendar_names. This will load any strings that
     haven't been loaded yet. *)
 
 val add_event :

@@ -51,8 +51,7 @@ let run ?from_str ?to_str ?calendar ?count ~format ~today ~tomorrow ~week ~month
   in
   let filter =
     match calendar with
-    | Some collection_id ->
-        Some (Query.in_collections [ Collection.Col collection_id ])
+    | Some calendar_name -> Some (Query.in_calendar_names [ calendar_name ])
     | None -> None
   in
   let comparator = Query_args.create_event_comparator sort in

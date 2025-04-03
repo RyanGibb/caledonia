@@ -1,3 +1,3 @@
-(** A collection is a directory of `ics` files *)
+(** A calendar_name is a directory of `ics` files *)
 
-type t = Col of string  (** The name of the collection. *)
+type t = Col of string  (** The name of the calendar_name. *)

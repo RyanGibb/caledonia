@@ -3,7 +3,7 @@ open Icalendar
 type event_id = string
 
 type t = {
-  collection : Collection.t;
+  calendar_name : string;
   file : Eio.Fs.dir_ty Eio.Path.t;
   event : event;
   calendar : calendar;
@@ -18,15 +18,13 @@ let generate_uuid () =
 let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 
 let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
-    ?end_ ?location ?description ?recurrence collection =
+    ?end_ ?location ?description ?recurrence calendar_name =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
   let file =
     Eio.Path.(
-      fs / calendar_dir_path
-      / (match collection with Collection.Col s -> s)
-      / file_name)
+      fs / calendar_dir_path / (match calendar_name with s -> s) / file_name)
   in
   let dtstart = (Params.empty, start) in
   let dtend_or_duration = end_ in
@@ -59,7 +57,7 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
     let components = [ `Event event ] in
     (props, components)
   in
-  { collection; file; event; calendar }
+  { calendar_name; file; event; calendar }
 
 let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let now = Ptime_clock.now () in
@@ -112,12 +110,12 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
       alarms;
     }
   in
-  let collection = t.collection in
+  let calendar_name = t.calendar_name in
   let file = t.file in
   let calendar = t.calendar in
-  { collection; file; event; calendar }
+  { calendar_name; file; event; calendar }
 
-let events_of_icalendar collection ~file calendar =
+let events_of_icalendar calendar_name ~file calendar =
   let remove_dup_ids lst =
     let rec aux acc = function
       | [] -> acc
@@ -133,7 +131,7 @@ let events_of_icalendar collection ~file calendar =
       (snd calendar)
   in
   let events = remove_dup_ids events in
-  List.map (function event -> { collection; file; event; calendar }) events
+  List.map (function event -> { calendar_name; file; event; calendar }) events
 
 let to_ical_event t = t.event
 let to_ical_calendar t = t.calendar
@@ -210,7 +208,7 @@ let get_description t =
   | _ -> None
 
 let get_recurrence t = Option.map (fun r -> snd r) t.event.rrule
-let get_collection t = t.collection
+let get_calendar_name t = t.calendar_name
 let get_file t = t.file
 
 type comparator = t -> t -> int
@@ -241,9 +239,9 @@ let by_location e1 e2 =
   | None, Some _ -> -1
   | None, None -> 0
 
-let by_collection e1 e2 =
-  match (get_collection e1, get_collection e2) with
-  | Collection.Col c1, Collection.Col c2 -> String.compare c1 c2
+let by_calendar_name e1 e2 =
+  match (get_calendar_name e1, get_calendar_name e2) with
+  | c1, c2 -> String.compare c1 c2
 
 let descending comp e1 e2 = -1 * comp e1 e2
 
@@ -252,10 +250,10 @@ let chain comp1 comp2 e1 e2 =
   if result <> 0 then result else comp2 e1 e2
 
 let clone_with_event t event =
-  let collection = t.collection in
+  let calendar_name = t.calendar_name in
   let file = t.file in
   let calendar = t.calendar in
-  { collection; file; event; calendar }
+  { calendar_name; file; event; calendar }
 
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
@@ -425,8 +423,8 @@ let format_event ?(format = `Text) ?tz event =
         | Some loc when loc <> "" -> " @" ^ loc
         | _ -> ""
       in
-      let collection = match get_collection event with Col s -> s in
-      Printf.sprintf "%-45s\t%s\t%s%s%s%s%s%s" id collection start_date
+      let calendar_name = get_calendar_name event in
+      Printf.sprintf "%-45s\t%s\t%s%s%s%s%s%s" id calendar_name start_date
         start_time end_date end_time summary location
   | `Entries ->
       let format_opt label f opt =
@@ -484,9 +482,7 @@ let format_event ?(format = `Text) ?tz event =
               match get_description event with
               | Some desc -> `String desc
               | None -> `Null );
-            ( "calendar",
-              match get_collection event with
-              | Collection.Col cal -> `String cal );
+            ("calendar", match get_calendar_name event with cal -> `String cal);
           ]
       in
       to_string json
@@ -501,9 +497,7 @@ let format_event ?(format = `Text) ?tz event =
       let location =
         match get_location event with Some loc -> loc | None -> ""
       in
-      let cal_id =
-        match get_collection event with Collection.Col cal -> cal
-      in
+      let cal_id = match get_calendar_name event with cal -> cal in
       Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start end_str
         location cal_id
   | `Ics ->
@@ -569,8 +563,8 @@ let format_event ?(format = `Text) ?tz event =
         | None -> "nil"
       in
       let calendar =
-        match get_collection event with
-        | Collection.Col cal -> Printf.sprintf "\"%s\"" (String.escaped cal)
+        match get_calendar_name event with
+        | cal -> Printf.sprintf "\"%s\"" (String.escaped cal)
       in
       let id = get_id event in
       Printf.sprintf

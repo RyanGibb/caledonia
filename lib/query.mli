@@ -5,7 +5,7 @@ type filter = Event.t -> bool
 val summary_contains : string -> filter
 val description_contains : string -> filter
 val location_contains : string -> filter
-val in_collections : Collection.t list -> filter
+val in_calendar_names : string list -> filter
 val recurring_only : unit -> filter
 val non_recurring_only : unit -> filter
 val with_id : Event.event_id -> filter

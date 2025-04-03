@@ -19,7 +19,7 @@ val create :
   ?location:string ->
   ?description:string ->
   ?recurrence:Icalendar.recurrence ->
-  Collection.t ->
+  string ->
   t
 (** Create a new event with required properties.
 
@@ -43,7 +43,7 @@ val edit :
 (** Edit an existing event. *)
 
 val events_of_icalendar :
-  Collection.t -> file:Eio.Fs.dir_ty Eio.Path.t -> Icalendar.calendar -> t list
+  string -> file:Eio.Fs.dir_ty Eio.Path.t -> Icalendar.calendar -> t list
 
 val to_ical_event : t -> Icalendar.event
 val to_ical_calendar : t -> Icalendar.calendar
@@ -70,7 +70,7 @@ val get_duration : t -> Ptime.span option
 val get_location : t -> string option
 val get_description : t -> string option
 val get_recurrence : t -> Icalendar.recurrence option
-val get_collection : t -> Collection.t
+val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
 
 type comparator = t -> t -> int
@@ -91,8 +91,8 @@ val by_location : comparator
 (** Compare events by location alphabetically. Events with locations come before
     those without *)
 
-val by_collection : comparator
-(** Compare events by collection name alphabetically *)
+val by_calendar_name : comparator
+(** Compare events by calendar_name name alphabetically *)
 
 val descending : comparator -> comparator
 (** Reverse the order of a comparator *)

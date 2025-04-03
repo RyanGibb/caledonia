@@ -2,6 +2,8 @@
 - [x] add/remove events
 - [x] edit events
 - [x] timezones
+- [x] remove collection module
+  - ref [[https://github.com/ocaml-ppx/ppxlib/issues/481]] cc patrick
 - [ ] allow editting recurrence-ids
 - [ ] really stress test the timezone handling -- this is full of gotcha's
 - [ ] don't load all calendars into memory to show only one event
@@ -20,9 +22,7 @@
 - [ ] support VOTODS
 - [ ] support VCARDS
 - [ ] server mode
-  - and maybe hold =Event='s in-memory in a =Collection= instead of parsing them for every =Query=
+  - and maybe hold =Event='s in-memory instead of parsing them for every =Query=
 - [ ] implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
 - [ ] implement an emacs client like mu4e
 - [ ] parallel queries
-- [ ] remove collection module
-  - ref [[https://github.com/ocaml-ppx/ppxlib/issues/481]] cc patrick

@@ -103,30 +103,28 @@ let test_calendar_filter ~fs () =
     Some (Option.get @@ Ptime.of_date_time ((2025, 01, 01), ((0, 0, 0), 0)))
   in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
-  let collection = Collection.Col "example" in
-  let filter = Query.in_collections [ collection ] in
+  let calendar_name = "example" in
+  let filter = Query.in_calendar_names [ calendar_name ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       let all_match_calendar =
         List.for_all
-          (fun e -> match Event.get_collection e with id -> id = collection)
+          (fun e ->
+            match Event.get_calendar_name e with id -> id = calendar_name)
           events
       in
       Alcotest.(check bool)
-        (Printf.sprintf "All events should be from calendar '%s'"
-           (match collection with Col str -> str))
+        (Printf.sprintf "All events should be from calendar '%s'" calendar_name)
         true all_match_calendar;
       Alcotest.(check int) "Should find events" 2 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
-  let collections = [ Collection.Col "example"; Collection.Col "recurrence" ] in
-  let filter = Query.in_collections collections in
+  let calendar_names = [ "example"; "recurrence" ] in
+  let filter = Query.in_calendar_names calendar_names in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       Alcotest.(check int) "Should find events" 791 (List.length events)
   | Error _ -> Alcotest.fail "Error querying events");
-  let filter =
-    Query.in_collections [ Collection.Col "non-existent-calendar" ]
-  in
+  let filter = Query.in_calendar_names [ "non-existent-calendar" ] in
   (match Query.query ~fs calendar_dir ~from ~to_ ~filter () with
   | Ok events ->
       Alcotest.(check int)
@@ -136,30 +134,31 @@ let test_calendar_filter ~fs () =
 
 let test_events ~fs =
   (* Create a test event with specific text in all fields *)
-  let create_test_event ~collection ~summary ~description ~location ~start =
+  let create_test_event ~calendar_name ~summary ~description ~location ~start =
     Event.create ~fs ~calendar_dir_path ~summary ~start
       ?description:(if description = "" then None else Some description)
       ?location:(if location = "" then None else Some location)
-      (Collection.Col collection)
+      calendar_name
   in
   [
     (* Event with text in all fields *)
-    create_test_event ~collection:"search_test" ~summary:"Project Meeting"
+    create_test_event ~calendar_name:"search_test" ~summary:"Project Meeting"
       ~description:"Weekly project status meeting with team"
       ~location:"Conference Room A"
       ~start:(`Datetime (`Utc fixed_date));
     (* Event with mixed case to test case insensitivity *)
-    create_test_event ~collection:"search_test" ~summary:"IMPORTANT Meeting"
+    create_test_event ~calendar_name:"search_test" ~summary:"IMPORTANT Meeting"
       ~description:"Critical project review with stakeholders"
       ~location:"Executive Suite"
       ~start:(`Datetime (`Utc fixed_date));
     (* Event with word fragments *)
-    create_test_event ~collection:"search_test" ~summary:"Conference Call"
+    create_test_event ~calendar_name:"search_test" ~summary:"Conference Call"
       ~description:"International conference preparation"
       ~location:"Remote Meeting Room"
       ~start:(`Datetime (`Utc fixed_date));
     (* Event with unique text in each field *)
-    create_test_event ~collection:"search_test" ~summary:"Workshop on Testing"
+    create_test_event ~calendar_name:"search_test"
+      ~summary:"Workshop on Testing"
       ~description:"Quality Assurance techniques and practices"
       ~location:"Training Center"
       ~start:(`Datetime (`Utc fixed_date));

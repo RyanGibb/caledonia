@@ -1,7 +1,7 @@
 open Cmdliner
 open Caledonia_lib
 
-let collection_arg =
+let calendar_name_arg =
   let doc = "Calendar to add the event to" in
   Arg.(
     required

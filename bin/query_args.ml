@@ -147,7 +147,7 @@ let create_event_comparator sort_specs =
         | `End -> Event.by_end
         | `Summary -> Event.by_summary
         | `Location -> Event.by_location
-        | `Calendar -> Event.by_collection
+        | `Calendar -> Event.by_calendar_name
       in
       if spec.descending then Event.descending comp else comp
   | specs ->
@@ -160,7 +160,7 @@ let create_event_comparator sort_specs =
             | `End -> Event.by_end
             | `Summary -> Event.by_summary
             | `Location -> Event.by_location
-            | `Calendar -> Event.by_collection
+            | `Calendar -> Event.by_calendar_name
           in
           let comp = if spec.descending then Event.descending comp else comp in
           Event.chain comp acc)
@@ -172,7 +172,7 @@ let create_event_comparator sort_specs =
            | `End -> Event.by_end
            | `Summary -> Event.by_summary
            | `Location -> Event.by_location
-           | `Calendar -> Event.by_collection
+           | `Calendar -> Event.by_calendar_name
          in
          if spec.descending then Event.descending comp else comp)
 

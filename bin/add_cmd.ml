@@ -3,7 +3,8 @@ open Caledonia_lib
 open Event_args
 
 let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
-    ~description ~recur ~collection ?timezone ?end_timezone ~fs calendar_dir =
+    ~description ~recur ~calendar_name ?timezone ?end_timezone ~fs calendar_dir
+    =
   let ( let* ) = Result.bind in
   let* start = parse_start ~start_date ~start_time ~timezone in
   let* start =
@@ -19,11 +20,11 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
         Ok (Some p)
     | None -> Ok None
   in
-  let collection = Collection.Col collection in
+  let calendar_name = calendar_name in
   let event =
     Event.create ~fs
       ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
-      ~summary ~start ?end_ ?location ?description ?recurrence collection
+      ~summary ~start ?end_ ?location ?description ?recurrence calendar_name
   in
   let* _ = Calendar_dir.add_event ~fs calendar_dir event in
   Printf.printf "Event created with ID: %s\n" (Event.get_id event);
@@ -31,10 +32,11 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
 
 let cmd ~fs calendar_dir =
   let run summary start_date start_time end_date end_time location description
-      recur collection timezone end_timezone =
+      recur calendar_name timezone end_timezone =
     match
       run ~summary ~start_date ~start_time ~end_date ~end_time ~location
-        ~description ~recur ~collection ?timezone ?end_timezone ~fs calendar_dir
+        ~description ~recur ~calendar_name ?timezone ?end_timezone ~fs
+        calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -45,7 +47,7 @@ let cmd ~fs calendar_dir =
     Term.(
       const run $ required_summary_arg $ start_date_arg $ start_time_arg
       $ end_date_arg $ end_time_arg $ location_arg $ description_arg $ recur_arg
-      $ collection_arg $ timezone_arg $ end_time_arg)
+      $ calendar_name_arg $ timezone_arg $ end_time_arg)
   in
   let doc = "Add a new calendar event" in
   let man =

@@ -46,9 +46,8 @@ let run ?from_str ?to_str ?calendar ?count ?query_text ~summary ~description
         | None, None -> Ok (None, Date.to_end_of_day max_date))
   in
   (match calendar with
-  | Some collection_id ->
-      filters :=
-        Query.in_collections [ Collection.Col collection_id ] :: !filters
+  | Some calendar_name ->
+      filters := Query.in_calendar_names [ calendar_name ] :: !filters
   | None -> ());
   (match query_text with
   | Some text ->
