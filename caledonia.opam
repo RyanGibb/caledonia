@@ -14,7 +14,7 @@ build: [
 depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "3.4"}
-  "icalendar" {>= "0.1.10"}
+  "icalendar" {= "dev"}
   "cmdliner" {>= "1.3.0"}
   "ptime" {>= "1.2"}
   "fmt" {>= "0.9.0"}
@@ -27,4 +27,8 @@ depends: [
   "timere" {>= "0.8.0"}
   "timedesc" {>= "0.8.0"}
   "alcotest" {>= "1.8.0" & with-test}
+]
+pin-depends: [
+  # https://github.com/robur-coop/icalendar/pull/17
+  ["icalendar.dev" "git+https://github.com/robur-coop/icalendar#70006afc8cf05963f5187966aae18d40e532d4b5"]
 ]

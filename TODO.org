@@ -14,6 +14,7 @@
 - [ ] support querying times as well as dates
 - [ ] custom date/time formatting
 - [ ] support querying regex
+- [ ] support VTIMEZONE
 - [ ] support VALARMS
 - [ ] support VOTODS
 - [ ] support VCARDS
