@@ -134,7 +134,7 @@ let sort_arg =
   Arg.(
     value
     & opt_all sort_converter [ default_sort ]
-    & info [ "sort"; "s" ] ~docv:"SORT" ~doc)
+    & info [ "sort"; "S" ] ~docv:"SORT" ~doc)
 
 (* Convert sort specs to an instance comparator *)
 let create_instance_comparator sort_specs =

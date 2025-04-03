@@ -56,7 +56,6 @@ let query_events ~fs calendar_dir ?filter ?(comparator = Event.by_start) ?limit
 
 let query ~fs calendar_dir ?filter ~from ~to_
     ?(comparator = Recur.Instance.by_start) ?limit () =
-  Fmt.epr "Querying from %a to %a\n%!" Ptime.pp (Option.get from) Ptime.pp to_;
   match query_events ~fs calendar_dir ?filter () with
   | Ok events ->
       let instances =
