@@ -6,7 +6,7 @@ let run ~event_id ~format ~fs calendar_dir =
   let filter = Query.with_id event_id in
   let* results = Query.query_without_recurrence ~fs calendar_dir ~filter () in
   if results = [] then print_endline "No events found."
-  else print_endline (Format.format_events ~format results);
+  else print_endline (Event.format_events ~format results);
   Ok ()
 
 let event_id_arg =

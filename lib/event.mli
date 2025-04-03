@@ -102,4 +102,17 @@ val chain : comparator -> comparator -> comparator
 (** Chain two comparators together, using the second one as a tiebreaker when
     the first one returns equality (0) *)
 
+(** Functions for formatting various data structures as strings *)
+
+type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
+(** Format type for output *)
+
+(** Functions for formatting specific event types *)
+val format_event : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
+(** Format a single event, optionally using the specified timezone *)
+
+val format_events :
+  ?format:format -> ?tz:Timedesc.Time_zone.t -> t list -> string
+(** Format a list of events, optionally using the specified timezone *)
+
 val expand_recurrences : from:Ptime.t option -> to_:Ptime.t -> t -> t list
