@@ -368,33 +368,28 @@ let parse_date_time ?(tz = !default_timezone ()) ~date ~time parameter =
 let ptime_of_ical = function
   | `Datetime (`Utc t) -> t
   | `Datetime (`Local t) ->
-      let system_tz =
-        match Timedesc.Time_zone.local () with
-        | Some tz -> tz
-        | None -> Timedesc.Time_zone.utc
-      in
+      let tz = Timedesc.Time_zone.local_exn () in
       let ts = Timedesc.Utils.timestamp_of_ptime t in
+      (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let dt =
-        match Timedesc.of_timestamp ~tz_of_date_time:system_tz ts with
-        | Some dt -> dt
-        | None -> failwith "Invalid local date conversion"
+        Timedesc.of_timestamp_exn ~tz_of_date_time:Timedesc.Time_zone.utc ts
       in
+      (* We extract the datetime, and reinterpret it in the appropriate timezone *)
+      let date = Timedesc.date dt in
+      let time = Timedesc.time dt in
+      let dt = Timedesc.of_date_and_time_exn ~tz date time in
       timedesc_to_ptime dt
   | `Datetime (`With_tzid (t, (_, tzid))) ->
-      let tz =
-        match Timedesc.Time_zone.make tzid with
-        | Some tz -> tz
-        | None ->
-            failwith
-              (Printf.sprintf
-                 "Warning: Unknown timezone %s, falling back to UTC\n" tzid)
-      in
+      let tz = Timedesc.Time_zone.make_exn tzid in
+      (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let ts = Timedesc.Utils.timestamp_of_ptime t in
       let dt =
-        match Timedesc.of_timestamp ~tz_of_date_time:tz ts with
-        | Some dt -> dt
-        | None -> failwith "Invalid timezone date conversion"
+        Timedesc.of_timestamp_exn ~tz_of_date_time:Timedesc.Time_zone.utc ts
       in
+      (* We extract the datetime, and reinterpret it in the appropriate timezone *)
+      let date = Timedesc.date dt in
+      let time = Timedesc.time dt in
+      let dt = Timedesc.of_date_and_time_exn ~tz date time in
       timedesc_to_ptime dt
   | `Date date -> (
       let y, m, d = date in
