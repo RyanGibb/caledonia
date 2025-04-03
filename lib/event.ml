@@ -648,14 +648,6 @@ let expand_recurrences ~from ~to_ event =
               (hd, List.map (function `Event e -> e | _ -> assert false) tl)
           | _ -> assert false
         in
-        Fmt.pr "Event:\n%s\n"
-          (format_event ~format:`Entries (clone_with_event event ical_event));
-        List.iter
-          (fun e ->
-            Fmt.pr "Recurrent ID event:\n%s\n"
-              (format_event ~format:`Entries (clone_with_event event e)))
-          other_events;
-        (* Icalendar filters for equal uids *)
         recur_events ~recurrence_ids:other_events ical_event
       in
       collect generator []
