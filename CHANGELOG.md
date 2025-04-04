@@ -1,4 +1,8 @@
 
+### 0.3.1
+
+- various bugfixes and tweaks
+
 ### 0.3.0
 
 - timezone support
