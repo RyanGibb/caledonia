@@ -14,7 +14,12 @@ let run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
     | _ -> Error (`Msg ("More than one found for id " ^ event_id))
   in
   let* start = parse_start ~start_date ~start_time ~timezone in
-  let* end_ = parse_end ~end_date ~end_time ~timezone ~end_timezone in
+  let* end_ =
+    let end_date =
+      match end_date with None -> start_date | Some e -> Some e
+    in
+    parse_end ~end_date ~end_time ~timezone ~end_timezone
+  in
   let* recurrence =
     match recur with
     | Some r ->

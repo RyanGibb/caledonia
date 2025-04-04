@@ -12,7 +12,12 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
     | Some s -> Ok s
     | None -> Error (`Msg "Start date required")
   in
-  let* end_ = parse_end ~end_date ~end_time ~timezone ~end_timezone in
+  let* end_ =
+    let end_date =
+      match end_date with None -> start_date | Some e -> Some e
+    in
+    parse_end ~end_date ~end_time ~timezone ~end_timezone
+  in
   let* recurrence =
     match recur with
     | Some r ->

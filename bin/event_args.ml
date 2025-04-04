@@ -28,7 +28,7 @@ let start_time_arg =
   Arg.(value & opt (some string) None & info [ "time"; "t" ] ~docv:"TIME" ~doc)
 
 let end_date_arg =
-  let doc = "Event end date (YYYY-MM-DD)" in
+  let doc = "Event end date (YYYY-MM-DD). Defaults to DATE." in
   Arg.(
     value
     & opt (some string) None
