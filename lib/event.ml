@@ -467,8 +467,8 @@ let format_event ?(format = `Text) ?tz event =
       let id, calendar_name, date_time, summary, location =
         text_event_data ?tz event
       in
-      Printf.sprintf "%s\t%s\t%s\t%s\t%s" id calendar_name date_time summary
-        location
+      Printf.sprintf "%s\t%s\t%s\t%s\t%s" calendar_name date_time summary
+        location id
   | `Entries ->
       let format_opt label f opt =
         Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
@@ -648,13 +648,27 @@ let format_events_with_dynamic_columns ?tz events =
         (fun acc (_, _, date, _, _) -> max acc (String.length date))
         0 event_data
     in
+    (* Calculate max width for summary+location *)
+    let max_summary_loc_width =
+      List.fold_left
+        (fun acc (_, _, _, summary, location) ->
+          let full_length =
+            String.length summary
+            + if location <> "" then String.length location + 1 else 0
+          in
+          max acc full_length)
+        0 event_data
+    in
     (* Format each event with calculated widths *)
     let formatted_events =
       List.map
         (fun (id, cal, date, summary, location) ->
-          Printf.sprintf "%-*s  %-*s  %-*s  %s%s" max_id_width id max_cal_width
-            cal max_date_width date summary
-            (if location <> "" then " " ^ location else ""))
+          let summary_loc =
+            summary ^ if location <> "" then " " ^ location else ""
+          in
+          Printf.sprintf "%-*s  %-*s  %-*s  %-*s" max_cal_width cal
+            max_date_width date max_summary_loc_width summary_loc max_id_width
+            id)
         event_data
     in
     String.concat "\n" formatted_events
