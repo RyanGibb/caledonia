@@ -648,7 +648,6 @@ let format_events_with_dynamic_columns ?tz events =
         (fun acc (_, _, date, _, _) -> max acc (String.length date))
         0 event_data
     in
-
     (* Format each event with calculated widths *)
     let formatted_events =
       List.map
