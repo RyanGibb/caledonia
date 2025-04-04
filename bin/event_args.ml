@@ -139,7 +139,7 @@ let parse_start ~start_date ~start_time ~timezone =
             Date.parse_date ~tz:Timedesc.Time_zone.utc start_date `From
           in
           let date = Ptime.to_date ptime in
-          Ok (Some (`Date date))
+          Ok (Some (Icalendar.Params.singleton Valuetype `Date, `Date date))
       | Some start_time -> (
           match timezone with
           | None ->
@@ -152,25 +152,25 @@ let parse_start ~start_date ~start_time ~timezone =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
                   ~time:start_time `From
               in
-              Ok (Some (`Datetime (`With_tzid (datetime, (false, tzid)))))
+              Ok (Some (Icalendar.Params.empty, `Datetime (`With_tzid (datetime, (false, tzid)))))
           | Some "FLOATING" ->
               let* datetime =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
                   ~time:start_time `From
               in
-              Ok (Some (`Datetime (`Local datetime)))
+              Ok (Some (Icalendar.Params.empty, `Datetime (`Local datetime)))
           | Some "UTC" ->
               let* datetime =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
                   ~time:start_time `From
               in
-              Ok (Some (`Datetime (`Utc datetime)))
+              Ok (Some (Icalendar.Params.empty, `Datetime (`Utc datetime)))
           | Some tzid ->
               let* datetime =
                 Date.parse_date_time ~tz:Timedesc.Time_zone.utc ~date:start_date
                   ~time:start_time `From
               in
-              Ok (Some (`Datetime (`With_tzid (datetime, (false, tzid)))))))
+              Ok (Some (Icalendar.Params.empty, `Datetime (`With_tzid (datetime, (false, tzid)))))))
 
 let parse_end ~end_date ~end_time ~timezone ~end_timezone =
   let ( let* ) = Result.bind in
@@ -219,8 +219,10 @@ let parse_end ~end_date ~end_time ~timezone ~end_timezone =
           let* ptime =
             Date.parse_date end_date ~tz:Timedesc.Time_zone.utc `From
           in
+          (* DTEND;VALUE=DATE the event ends at the start of the specified date *)
+          let ptime = Date.add_days ptime 1 in
           let date = Ptime.to_date ptime in
-          Ok (Some (`Dtend (Icalendar.Params.empty, `Date date)))
+          Ok (Some (`Dtend (Icalendar.Params.singleton Valuetype `Date, `Date date)))
       | Some end_time -> (
           match (timezone, end_timezone) with
           | None, None ->

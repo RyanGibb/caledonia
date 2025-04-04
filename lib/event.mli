@@ -12,7 +12,7 @@ val create :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
   calendar_dir_path:string ->
   summary:string ->
-  start:Icalendar.date_or_datetime ->
+  start:Icalendar.params * Icalendar.date_or_datetime ->
   ?end_:
     [ `Duration of Icalendar.params * Ptime.Span.t
     | `Dtend of Icalendar.params * Icalendar.date_or_datetime ] ->
@@ -31,7 +31,7 @@ val create :
 
 val edit :
   ?summary:string ->
-  ?start:Icalendar.date_or_datetime ->
+  ?start:Icalendar.params * Icalendar.date_or_datetime ->
   ?end_:
     [ `Duration of Icalendar.params * Ptime.Span.t
     | `Dtend of Icalendar.params * Icalendar.date_or_datetime ] ->

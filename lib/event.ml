@@ -26,7 +26,7 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
     Eio.Path.(
       fs / calendar_dir_path / (match calendar_name with s -> s) / file_name)
   in
-  let dtstart = (Params.empty, start) in
+  let dtstart = start in
   let dtend_or_duration = end_ in
   let rrule = Option.map (fun r -> (Params.empty, r)) recurrence in
   let now = Ptime_clock.now () in
@@ -63,7 +63,7 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let now = Ptime_clock.now () in
   let uid = t.event.uid in
   let dtstart =
-    match start with None -> t.event.dtstart | Some s -> (Params.empty, s)
+    match start with None -> t.event.dtstart | Some s -> s
   in
   let dtend_or_duration =
     match end_ with None -> t.event.dtend_or_duration | Some _ -> end_
@@ -169,14 +169,12 @@ let get_start_timezone t =
   match t.event.dtstart with
   | _, `Datetime (`With_tzid (_, (_, tzid))) -> Some tzid
   | _, `Datetime (`Utc _) -> Some "UTC"
-  | _, `Datetime (`Local _) -> Some "FLOATING"
   | _ -> None
 
 let get_end_timezone t =
   match t.event.dtend_or_duration with
   | Some (`Dtend (_, `Datetime (`With_tzid (_, (_, tzid))))) -> Some tzid
   | Some (`Dtend (_, `Datetime (`Utc _))) -> Some "UTC"
-  | Some (`Dtend (_, `Datetime (`Local _))) -> Some "FLOATING"
   | _ -> None
 
 let get_duration t =
