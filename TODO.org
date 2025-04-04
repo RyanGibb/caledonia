@@ -4,10 +4,10 @@
 - [x] timezones
 - [x] remove collection module
   - ref [[https://github.com/ocaml-ppx/ppxlib/issues/481]] cc patrick
-- [ ] allow editting recurrence-ids
-- [ ] really stress test the timezone handling -- this is full of gotcha's
+- [ ] allow editing recurrence-ids
 - [ ] don't load all calendars into memory to show only one event
 - [ ] support specifying duration
+- [ ] better add/edit event datetime parsing
 - [ ] diagnose events failing to parse
   - [[https://github.com/robur-coop/icalendar/issues/14]]
 - [ ] [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
