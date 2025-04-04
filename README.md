@@ -28,6 +28,16 @@ work       2025-04-30 Wed 15:00 - 16:00 (Europe/London)    Weekly Meeting       
 
 See [TODO](./TODO.org) for future plans.
 
+## Installation
+
+With [opam](https://opam.ocaml.org/),
+
+```
+$ opam install .
+```
+
+With [Nix](https://nixos.org/)
+
 ## Configuration
 
 Caledonia looks for calendars in the directory specified by the `CALENDAR_DIR` environment variable or in `~/.calendars/` by default.
