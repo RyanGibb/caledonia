@@ -47,7 +47,7 @@ let cmd ~fs calendar_dir =
     Term.(
       const run $ required_summary_arg $ start_date_arg $ start_time_arg
       $ end_date_arg $ end_time_arg $ location_arg $ description_arg $ recur_arg
-      $ calendar_name_arg $ timezone_arg $ end_time_arg)
+      $ calendar_name_arg $ timezone_arg $ end_timezone_arg)
   in
   let doc = "Add a new calendar event" in
   let man =

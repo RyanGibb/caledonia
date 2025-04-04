@@ -104,6 +104,15 @@ let date_format_manpage_entries =
 
 let parse_start ~start_date ~start_time ~timezone =
   let ( let* ) = Result.bind in
+  let* _ =
+    match timezone with
+    | None -> Ok ()
+    | Some tzid -> (
+        match Timedesc.Time_zone.make tzid with
+        | Some _ -> Ok ()
+        | None ->
+            Error (`Msg (Printf.sprintf "Warning: Unknown timezone %s" tzid)))
+  in
   match start_date with
   | None ->
       let* _ =
@@ -165,6 +174,24 @@ let parse_start ~start_date ~start_time ~timezone =
 
 let parse_end ~end_date ~end_time ~timezone ~end_timezone =
   let ( let* ) = Result.bind in
+  let* _ =
+    match timezone with
+    | None -> Ok ()
+    | Some tzid -> (
+        match Timedesc.Time_zone.make tzid with
+        | Some _ -> Ok ()
+        | None ->
+            Error (`Msg (Printf.sprintf "Warning: Unknown timezone %s" tzid)))
+  in
+  let* _ =
+    match end_timezone with
+    | None -> Ok ()
+    | Some tzid -> (
+        match Timedesc.Time_zone.make tzid with
+        | Some _ -> Ok ()
+        | None ->
+            Error (`Msg (Printf.sprintf "Warning: Unknown timezone %s" tzid)))
+  in
   match end_date with
   | None ->
       let* _ =

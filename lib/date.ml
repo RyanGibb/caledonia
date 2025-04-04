@@ -380,7 +380,11 @@ let ptime_of_ical = function
       let dt = Timedesc.of_date_and_time_exn ~tz date time in
       timedesc_to_ptime dt
   | `Datetime (`With_tzid (t, (_, tzid))) ->
-      let tz = Timedesc.Time_zone.make_exn tzid in
+      let tz =
+        match Timedesc.Time_zone.make tzid with
+        | Some tz -> tz
+        | None -> failwith (Printf.sprintf "Warning: Unknown timezone %s" tzid)
+      in
       (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let ts = Timedesc.Utils.timestamp_of_ptime t in
       let dt =
