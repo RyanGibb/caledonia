@@ -14,9 +14,18 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
   in
   let* end_ =
     let end_date =
-      match end_date with None -> start_date | Some e -> Some e
+      (* if we have an endtime and no end date default to start date *)
+      match (end_date, end_time) with
+      | None, Some _ -> start_date
+      | _ -> end_date
     in
-    parse_end ~end_date ~end_time ~timezone ~end_timezone
+    let end_timezone =
+      (* if we specify and end date and time without a end timezone, default to the start timezone *)
+      match (end_date, end_time, end_timezone) with
+      | Some _, Some _, None -> timezone
+      | _ -> end_timezone
+    in
+    parse_end ~end_date ~end_time ~end_timezone
   in
   let* recurrence =
     match recur with
@@ -26,7 +35,7 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
     | None -> Ok None
   in
   let calendar_name = calendar_name in
-  let event =
+  let* event =
     Event.create ~fs
       ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
       ~summary ~start ?end_ ?location ?description ?recurrence calendar_name

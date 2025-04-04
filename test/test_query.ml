@@ -142,26 +142,31 @@ let test_events ~fs =
   in
   [
     (* Event with text in all fields *)
-    create_test_event ~calendar_name:"search_test" ~summary:"Project Meeting"
-      ~description:"Weekly project status meeting with team"
-      ~location:"Conference Room A"
-      ~start:(`Datetime (`Utc fixed_date));
+    Result.get_ok
+    @@ create_test_event ~calendar_name:"search_test" ~summary:"Project Meeting"
+         ~description:"Weekly project status meeting with team"
+         ~location:"Conference Room A"
+         ~start:(Icalendar.Params.empty, `Datetime (`Utc fixed_date));
     (* Event with mixed case to test case insensitivity *)
-    create_test_event ~calendar_name:"search_test" ~summary:"IMPORTANT Meeting"
-      ~description:"Critical project review with stakeholders"
-      ~location:"Executive Suite"
-      ~start:(`Datetime (`Utc fixed_date));
+    Result.get_ok
+    @@ create_test_event ~calendar_name:"search_test"
+         ~summary:"IMPORTANT Meeting"
+         ~description:"Critical project review with stakeholders"
+         ~location:"Executive Suite"
+         ~start:(Icalendar.Params.empty, `Datetime (`Utc fixed_date));
     (* Event with word fragments *)
-    create_test_event ~calendar_name:"search_test" ~summary:"Conference Call"
-      ~description:"International conference preparation"
-      ~location:"Remote Meeting Room"
-      ~start:(`Datetime (`Utc fixed_date));
+    Result.get_ok
+    @@ create_test_event ~calendar_name:"search_test" ~summary:"Conference Call"
+         ~description:"International conference preparation"
+         ~location:"Remote Meeting Room"
+         ~start:(Icalendar.Params.empty, `Datetime (`Utc fixed_date));
     (* Event with unique text in each field *)
-    create_test_event ~calendar_name:"search_test"
-      ~summary:"Workshop on Testing"
-      ~description:"Quality Assurance techniques and practices"
-      ~location:"Training Center"
-      ~start:(`Datetime (`Utc fixed_date));
+    Result.get_ok
+    @@ create_test_event ~calendar_name:"search_test"
+         ~summary:"Workshop on Testing"
+         ~description:"Quality Assurance techniques and practices"
+         ~location:"Training Center"
+         ~start:(Icalendar.Params.empty, `Datetime (`Utc fixed_date));
   ]
 
 (* Test helper to verify if a list of events contains an event with a given summary *)

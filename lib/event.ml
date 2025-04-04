@@ -16,6 +16,7 @@ let generate_uuid () =
   Uuidm.to_string uuid
 
 let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
+let ( let* ) = Result.bind
 
 let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
     ?end_ ?location ?description ?recurrence calendar_name =
@@ -28,6 +29,15 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
   in
   let dtstart = start in
   let dtend_or_duration = end_ in
+  let* _ =
+    match (dtstart, dtend_or_duration) with
+    | (_, `Date _), Some (`Dtend (_, `Datetime _)) ->
+        Error (`Msg "If the start is a date the end must also be a date.")
+    | (_, `Datetime _), Some (`Dtend (_, `Date _)) ->
+        Error
+          (`Msg "If the start is a datetime the end must also be a datetime.")
+    | _ -> Ok ()
+  in
   let rrule = Option.map (fun r -> (Params.empty, r)) recurrence in
   let now = Ptime_clock.now () in
   let props = [ `Summary (Params.empty, summary) ] in
@@ -57,16 +67,23 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
     let components = [ `Event event ] in
     (props, components)
   in
-  { calendar_name; file; event; calendar }
+  Ok { calendar_name; file; event; calendar }
 
 let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let now = Ptime_clock.now () in
   let uid = t.event.uid in
-  let dtstart =
-    match start with None -> t.event.dtstart | Some s -> s
-  in
+  let dtstart = match start with None -> t.event.dtstart | Some s -> s in
   let dtend_or_duration =
     match end_ with None -> t.event.dtend_or_duration | Some _ -> end_
+  in
+  let* _ =
+    match (dtstart, dtend_or_duration) with
+    | (_, `Date _), Some (`Dtend (_, `Datetime _)) ->
+        Error (`Msg "If the start is a date the end must also be a date.")
+    | (_, `Datetime _), Some (`Dtend (_, `Date _)) ->
+        Error
+          (`Msg "If the start is a datetime the end must also be a datetime.")
+    | _ -> Ok ()
   in
   let rrule =
     match recurrence with
@@ -113,7 +130,7 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
   let calendar_name = t.calendar_name in
   let file = t.file in
   let calendar = t.calendar in
-  { calendar_name; file; event; calendar }
+  Ok { calendar_name; file; event; calendar }
 
 let events_of_icalendar calendar_name ~file calendar =
   let remove_dup_ids lst =

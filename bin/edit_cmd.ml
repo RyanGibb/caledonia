@@ -16,9 +16,18 @@ let run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
   let* start = parse_start ~start_date ~start_time ~timezone in
   let* end_ =
     let end_date =
-      match end_date with None -> start_date | Some e -> Some e
+      (* if we have an endtime and no end date default to start date *)
+      match (end_date, end_time) with
+      | None, Some _ -> start_date
+      | _ -> end_date
     in
-    parse_end ~end_date ~end_time ~timezone ~end_timezone
+    let end_timezone =
+      (* if we specify and end date and time without a end timezone, default to the start timezone *)
+      match (end_date, end_time, end_timezone) with
+      | Some _, Some _, None -> timezone
+      | _ -> end_timezone
+    in
+    parse_end ~end_date ~end_time ~end_timezone
   in
   let* recurrence =
     match recur with
@@ -27,7 +36,7 @@ let run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
         Ok (Some p)
     | None -> Ok None
   in
-  let modifed_event =
+  let* modifed_event =
     Event.edit ?summary ?start ?end_ ?location ?description ?recurrence event
   in
   let* _ = Calendar_dir.edit_event ~fs calendar_dir modifed_event in

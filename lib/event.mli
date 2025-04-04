@@ -20,7 +20,7 @@ val create :
   ?description:string ->
   ?recurrence:Icalendar.recurrence ->
   string ->
-  t
+  (t, [> `Msg of string ]) result
 (** Create a new event with required properties.
 
     The start and end times can be specified as Icalendar.timestamp values,
@@ -39,7 +39,7 @@ val edit :
   ?description:string ->
   ?recurrence:Icalendar.recurrence ->
   t ->
-  t
+  (t, [> `Msg of string ]) result
 (** Edit an existing event. *)
 
 val events_of_icalendar :
