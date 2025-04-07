@@ -8,6 +8,8 @@ type t
 
 type date_error = [ `Msg of string ]
 
+(** {2 Events} *)
+
 val create :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
   calendar_dir_path:string ->
@@ -72,6 +74,9 @@ val get_description : t -> string option
 val get_recurrence : t -> Icalendar.recurrence option
 val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
+val expand_recurrences : from:Ptime.t option -> to_:Ptime.t -> t -> t list
+
+(** {2 Comparators} *)
 
 type comparator = t -> t -> int
 (** Event comparator function type *)
@@ -101,17 +106,14 @@ val chain : comparator -> comparator -> comparator
 (** Chain two comparators together, using the second one as a tiebreaker when
     the first one returns equality (0) *)
 
-(** Functions for formatting various data structures as strings *)
+(** 2 Formatting *)
 
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 (** Format type for output *)
 
-(** Functions for formatting specific event types *)
 val format_event : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
 (** Format a single event, optionally using the specified timezone *)
 
 val format_events :
   ?format:format -> ?tz:Timedesc.Time_zone.t -> t list -> string
 (** Format a list of events, optionally using the specified timezone *)
-
-val expand_recurrences : from:Ptime.t option -> to_:Ptime.t -> t -> t list
