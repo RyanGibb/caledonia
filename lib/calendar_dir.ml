@@ -1,15 +1,9 @@
 open Icalendar
 
-module CalendarMap = Map.Make (struct
-  type t = string
-
-  let compare a b = String.compare a b
-end)
-
-type t = { path : string; mutable calendar_names : Event.t list CalendarMap.t }
+type t = string
 
 let get_calendar_path ~fs calendar_dir calendar_name_name =
-  Eio.Path.(fs / calendar_dir.path / calendar_name_name)
+  Eio.Path.(fs / calendar_dir / calendar_name_name)
 
 let ensure_dir path =
   try
@@ -22,16 +16,20 @@ let ensure_dir path =
 
 let create ~fs path =
   match ensure_dir Eio.Path.(fs / path) with
-  | Ok () -> Ok { path; calendar_names = CalendarMap.empty }
+  | Ok () -> Ok path
   | Error e -> Error e
 
 let list_calendar_names ~fs calendar_dir =
   try
-    let dir = Eio.Path.(fs / calendar_dir.path) in
+    let dir = Eio.Path.(fs / calendar_dir) in
     let calendar_names =
       Eio.Path.read_dir dir
       |> List.filter_map (fun file ->
-             if Eio.Path.is_directory Eio.Path.(dir / file) then Some file
+             if
+               String.length file > 0
+               && file.[0] != '.'
+               && Eio.Path.is_directory Eio.Path.(dir / file)
+             then Some file
              else None)
       |> List.sort (fun a b -> String.compare a b)
     in
@@ -39,7 +37,7 @@ let list_calendar_names ~fs calendar_dir =
   with Eio.Exn.Io _ as exn ->
     Error
       (`Msg
-         (Fmt.str "Failed to list calendar directory %s: %a" calendar_dir.path
+         (Fmt.str "Failed to list calendar directory %s: %a" calendar_dir
             Eio.Exn.pp exn))
 
 let rec load_events_recursive calendar_name dir_path =
@@ -71,24 +69,19 @@ let rec load_events_recursive calendar_name dir_path =
     []
 
 let get_calendar_events ~fs calendar_dir calendar_name =
-  match CalendarMap.find_opt calendar_name calendar_dir.calendar_names with
-  | Some events -> Ok events
-  | None -> (
-      let calendar_name_path =
-        get_calendar_path ~fs calendar_dir calendar_name
-      in
-      if not (Eio.Path.is_directory calendar_name_path) then Error `Not_found
-      else
-        try
-          let events = load_events_recursive calendar_name calendar_name_path in
-          calendar_dir.calendar_names <-
-            CalendarMap.add calendar_name events calendar_dir.calendar_names;
-          Ok events
-        with e ->
-          Error
-            (`Msg
-               (Printf.sprintf "Exception processing directory %s: %s"
-                  (snd calendar_name_path) (Printexc.to_string e))))
+  let calendar_name_path =
+    get_calendar_path ~fs calendar_dir calendar_name
+  in
+  if not (Eio.Path.is_directory calendar_name_path) then Error `Not_found
+  else
+    try
+      let events = load_events_recursive calendar_name calendar_name_path in
+      Ok events
+    with e ->
+      Error
+        (`Msg
+           (Printf.sprintf "Exception processing directory %s: %s"
+              (snd calendar_name_path) (Printexc.to_string e)))
 
 let ( let* ) = Result.bind
 
@@ -113,33 +106,22 @@ let get_events ~fs calendar_dir =
              (Printf.sprintf "Error getting calendar_names: %s"
                 (Printexc.to_string exn))))
 
-let add_event ~fs calendar_dir event =
+let add_event ~fs calendar_dir events event =
   let calendar_name = Event.get_calendar_name event in
   let file = Event.get_file event in
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
   let* () = ensure_dir calendar_name_path in
   let calendar = Event.to_ical_calendar event in
   let content = Icalendar.to_ics ~cr:true calendar in
-  let* _ =
     try
       Eio.Path.save ~create:(`Or_truncate 0o644) file content;
-      Ok ()
+      Ok (event :: events)
     with Eio.Exn.Io _ as exn ->
       Error
         (`Msg
            (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
-  in
-  calendar_dir.calendar_names <-
-    CalendarMap.add calendar_name
-      (event
-      ::
-      (match CalendarMap.find_opt calendar_name calendar_dir.calendar_names with
-      | Some lst -> lst
-      | None -> []))
-      calendar_dir.calendar_names;
-  Ok ()
 
-let edit_event ~fs calendar_dir event =
+let edit_event ~fs calendar_dir events event =
   let calendar_name = Event.get_calendar_name event in
   let event_id = Event.get_id event in
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
@@ -162,27 +144,17 @@ let edit_event ~fs calendar_dir event =
     (existing_props, `Event ical_event :: filtered_components)
   in
   let content = Icalendar.to_ics ~cr:true calendar in
-  let* _ =
-    try
-      Eio.Path.save ~create:(`Or_truncate 0o644) file content;
-      Ok ()
-    with Eio.Exn.Io _ as exn ->
-      Error
-        (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
-  in
-  calendar_dir.calendar_names <-
-    CalendarMap.add calendar_name
-      (event
-      ::
-      (match CalendarMap.find_opt calendar_name calendar_dir.calendar_names with
-      (* filter old version *)
-      | Some lst -> List.filter (fun e -> Event.get_id e = event_id) lst
-      | None -> []))
-      calendar_dir.calendar_names;
-  Ok ()
+  try
+    Eio.Path.save ~create:(`Or_truncate 0o644) file content;
+    (* Filter out the old event and add the updated one *)
+    let filtered_events = List.filter (fun e -> Event.get_id e <> event_id) events in
+    Ok (event :: filtered_events)
+  with Eio.Exn.Io _ as exn ->
+    Error
+      (`Msg
+         (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
 
-let delete_event ~fs calendar_dir event =
+let delete_event ~fs calendar_dir events event =
   let calendar_name = Event.get_calendar_name event in
   let event_id = Event.get_id event in
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
@@ -208,24 +180,16 @@ let delete_event ~fs calendar_dir event =
     (existing_props, filtered_components)
   in
   let content = Icalendar.to_ics ~cr:true calendar in
-  let* _ =
-    try
-      (match !other_events with
-      | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file content
-      | false -> Eio.Path.unlink file);
-      Ok ()
-    with Eio.Exn.Io _ as exn ->
-      Error
-        (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
-  in
-  calendar_dir.calendar_names <-
-    CalendarMap.add calendar_name
-      (match CalendarMap.find_opt calendar_name calendar_dir.calendar_names with
-      (* filter old version *)
-      | Some lst -> List.filter (fun e -> Event.get_id e = event_id) lst
-      | None -> [])
-      calendar_dir.calendar_names;
-  Ok ()
+  try
+    (match !other_events with
+    | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file content
+    | false -> Eio.Path.unlink file);
+    (* Filter out the deleted event from the events list *)
+    let filtered_events = List.filter (fun e -> Event.get_id e <> event_id) events in
+    Ok filtered_events
+  with Eio.Exn.Io _ as exn ->
+    Error
+      (`Msg
+         (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
 
-let get_path t = t.path
+let get_path t = t

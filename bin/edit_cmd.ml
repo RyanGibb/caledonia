@@ -5,8 +5,9 @@ open Event_args
 let run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
     ~description ~recur ?timezone ?end_timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let filter = Query.with_id event_id in
-  let* results = Query.query_without_recurrence ~fs calendar_dir ~filter () in
+  let filter = Event.with_id event_id in
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let results = Event.query_without_recurrence events ~filter () in
   let* event =
     match results with
     | [ event ] -> Ok event
@@ -39,7 +40,7 @@ let run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
   let* modifed_event =
     Event.edit ?summary ?start ?end_ ?location ?description ?recurrence event
   in
-  let* _ = Calendar_dir.edit_event ~fs calendar_dir modifed_event in
+  let* _ = Calendar_dir.edit_event ~fs calendar_dir events modifed_event in
   Printf.printf "Event %s updated.\n" event_id;
   Ok ()
 
@@ -49,7 +50,7 @@ let event_id_arg =
 
 let cmd ~fs calendar_dir =
   let run event_id summary start_date start_time end_date end_time location
-      description recur timezone end_timezone =
+      description recur timezone end_timezone () =
     match
       run ~event_id ~summary ~start_date ~start_time ~end_date ~end_time
         ~location ~description ~recur ?timezone ?end_timezone ~fs calendar_dir

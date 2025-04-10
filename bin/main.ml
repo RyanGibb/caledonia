@@ -1,5 +1,3 @@
-(* Main entry point for the calendar CLI *)
-
 open Cmdliner
 
 let list_cmd = List_cmd.cmd
@@ -8,6 +6,7 @@ let show_cmd = Show_cmd.cmd
 let add_cmd = Add_cmd.cmd
 let delete_cmd = Delete_cmd.cmd
 let edit_cmd = Edit_cmd.cmd
+let server_cmd = Server_cmd.cmd
 let doc = "Command-line calendar tool for managing local .ics files"
 let version = "%%VERSION%%"
 
@@ -47,9 +46,11 @@ let main env =
                add_cmd ~fs calendar_dir;
                edit_cmd ~fs calendar_dir;
                delete_cmd ~fs calendar_dir;
+               server_cmd ~stdin:(Eio.Stdenv.stdin env)
+                 ~stdout:(Eio.Stdenv.stdout env) ~fs calendar_dir;
              ])
       with
-      | Ok (`Ok n) -> n
+      | Ok (`Ok f) -> f ()
       | Ok _ -> 0
       | Error _ -> 1)
 

@@ -13,10 +13,16 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
     | None -> Error (`Msg "Start date required")
   in
   let* end_ =
+    (* if we have an endtime and no end date default to start date *)
     let end_date =
-      (* if we have an endtime and no end date default to start date *)
       match (end_date, end_time) with
       | None, Some _ -> start_date
+      | _ -> end_date
+    in
+    (* if we have a start date and no end date default to start date *)
+    let end_date =
+      match (start_date, end_date) with
+      | Some _, None -> start_date
       | _ -> end_date
     in
     let end_timezone =
@@ -40,13 +46,14 @@ let run ~summary ~start_date ~start_time ~end_date ~end_time ~location
       ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
       ~summary ~start ?end_ ?location ?description ?recurrence calendar_name
   in
-  let* _ = Calendar_dir.add_event ~fs calendar_dir event in
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let* _ = Calendar_dir.add_event ~fs calendar_dir events event in
   Printf.printf "Event created with ID: %s\n" (Event.get_id event);
   Ok ()
 
 let cmd ~fs calendar_dir =
   let run summary start_date start_time end_date end_time location description
-      recur calendar_name timezone end_timezone =
+      recur calendar_name timezone end_timezone () =
     match
       run ~summary ~start_date ~start_time ~end_date ~end_time ~location
         ~description ~recur ~calendar_name ?timezone ?end_timezone ~fs

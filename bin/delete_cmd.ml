@@ -3,18 +3,19 @@ open Caledonia_lib
 
 let run ~event_id ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let filter = Query.with_id event_id in
-  let* results = Query.query_without_recurrence ~fs calendar_dir ~filter () in
+  let filter = Event.with_id event_id in
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let events = Event.query_without_recurrence events ~filter () in
   let* event =
-    match results with
+    match events with
     | [ event ] -> Ok event
     | [] -> Error (`Msg ("No events found found for id " ^ event_id))
     | _ -> Error (`Msg ("More than one found for id " ^ event_id))
   in
-  let result = Calendar_dir.delete_event ~fs calendar_dir event in
+  let result = Calendar_dir.delete_event ~fs calendar_dir events event in
   match result with
   | Error (`Msg msg) -> Error (`Msg msg)
-  | Ok () ->
+  | Ok _ ->
       Printf.printf "Event %s successfully deleted.\n" event_id;
       Ok ()
 
@@ -23,7 +24,7 @@ let event_id_arg =
   Arg.(required & pos 0 (some string) None & info [] ~docv:"EVENT_ID" ~doc)
 
 let cmd ~fs calendar_dir =
-  let run event_id =
+  let run event_id () =
     match run ~event_id ~fs calendar_dir with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;

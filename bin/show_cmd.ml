@@ -3,8 +3,9 @@ open Caledonia_lib
 
 let run ~event_id ~format ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let filter = Query.with_id event_id in
-  let* results = Query.query_without_recurrence ~fs calendar_dir ~filter () in
+  let filter = Event.with_id event_id in
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let results = Event.query_without_recurrence events ~filter () in
   if results = [] then print_endline "No events found."
   else print_endline (Event.format_events ~format results);
   Ok ()
@@ -21,7 +22,7 @@ let format_arg =
     & info [ "format"; "o" ] ~docv:"FORMAT" ~doc)
 
 let cmd ~fs calendar_dir =
-  let run event_id format =
+  let run event_id format () =
     match run ~event_id ~format ~fs calendar_dir with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;

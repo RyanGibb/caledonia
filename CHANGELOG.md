@@ -1,4 +1,8 @@
 
+### 0.4.0
+
+- Emacs front end that communicates with a server mode via an S-expression protocol
+
 ### 0.3.1
 
 - various bugfixes and tweaks

@@ -165,6 +165,44 @@ let get_end_of_current_month ?(tz = !default_timezone ()) () =
 let get_end_of_next_month ?(tz = !default_timezone ()) () =
   get_end_of_month (get_start_of_next_month ~tz ())
 
+let get_start_of_year date =
+  let dt = ptime_to_timedesc date in
+  let year = Timedesc.year dt in
+
+  (* Create a date for the first of January *)
+  match Timedesc.Date.Ymd.make ~year ~month:1 ~day:1 with
+  | Ok first_day ->
+      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+      let first_of_year = Timedesc.of_date_and_time_exn first_day midnight in
+      timedesc_to_ptime first_of_year
+  | Error _ -> failwith "Invalid date for start of year"
+
+let get_start_of_current_year ?(tz = !default_timezone ()) () =
+  get_start_of_year (!get_today ~tz ())
+
+let get_start_of_next_year ?(tz = !default_timezone ()) () =
+  add_years (get_start_of_current_year ~tz ()) 1
+
+let get_end_of_year date =
+  let dt = ptime_to_timedesc date in
+  let year = Timedesc.year dt in
+
+  (* Create a date for the last day of the year (December 31) *)
+  match Timedesc.Date.Ymd.make ~year ~month:12 ~day:31 with
+  | Ok last_day ->
+      let end_of_day =
+        Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
+      in
+      let end_of_year = Timedesc.of_date_and_time_exn last_day end_of_day in
+      timedesc_to_ptime end_of_year
+  | Error _ -> failwith "Invalid date for end of year"
+
+let get_end_of_current_year ?(tz = !default_timezone ()) () =
+  get_end_of_year (!get_today ~tz ())
+
+let get_end_of_next_year ?(tz = !default_timezone ()) () =
+  get_end_of_year (get_start_of_next_year ~tz ())
+
 let convert_relative_date_formats ?(tz = !default_timezone ()) ~today ~tomorrow
     ~week ~month () =
   if today then
@@ -269,7 +307,7 @@ let parse_year_month ~tz expr parameter =
   else None
 
 let parse_relative ~tz expr parameter =
-  let regex = Re.Pcre.regexp "^([+-])(\\d+)([dwm])$" in
+  let regex = Re.Pcre.regexp "^([+-])(\\d+)([dwmy])$" in
   if Re.Pcre.pmatch ~rex:regex expr then
     let match_result = Re.Pcre.exec ~rex:regex expr in
     let sign = Re.Pcre.get_substring match_result 1 in
@@ -290,6 +328,11 @@ let parse_relative ~tz expr parameter =
         match parameter with
         | `From -> Some (Ok (get_start_of_month date))
         | `To -> Some (Ok (get_end_of_month date)))
+    | "y" -> (
+        let date = add_years today value in
+        match parameter with
+        | `From -> Some (Ok (get_start_of_year date))
+        | `To -> Some (Ok (get_end_of_year date)))
     | _ -> Some (Error (`Msg (Printf.sprintf "Invalid date unit: %s" unit)))
   else None
 

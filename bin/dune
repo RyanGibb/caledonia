@@ -14,7 +14,9 @@
   ptime.clock.os
   eio
   eio_main
-  timere)
+  timere
+  sexplib
+  sexplib.unix)
  (modules
   main
   query_args
@@ -24,4 +26,5 @@
   show_cmd
   add_cmd
   delete_cmd
-  edit_cmd))
+  edit_cmd
+  server_cmd))

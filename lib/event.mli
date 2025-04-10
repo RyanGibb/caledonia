@@ -117,3 +117,48 @@ val format_event : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
 val format_events :
   ?format:format -> ?tz:Timedesc.Time_zone.t -> t list -> string
 (** Format a list of events, optionally using the specified timezone *)
+
+val sexp_of_t : t -> Sexplib0.Sexp.t
+
+(** 3 Queries *)
+
+(** Filter-based searching and querying of calendar events *)
+
+type filter = t -> bool
+
+val summary_contains : string -> filter
+val description_contains : string -> filter
+val location_contains : string -> filter
+val in_calendars : string list -> filter
+val recurring_only : unit -> filter
+val non_recurring_only : unit -> filter
+val with_id : event_id -> filter
+val and_filter : filter list -> filter
+val or_filter : filter list -> filter
+val not_filter : filter -> filter
+
+val query_without_recurrence :
+  t list ->
+  ?filter:filter ->
+  ?comparator:comparator ->
+  ?limit:int ->
+  unit ->
+  t list
+(** Find events without expansion of recurring events. Returns Ok with the list
+    of events, or Error with a message. *)
+
+val query :
+  t list ->
+  ?filter:filter ->
+  from:Ptime.t option ->
+  to_:Ptime.t ->
+  ?comparator:comparator ->
+  ?limit:int ->
+  unit ->
+  t list
+(** Find events with expansion of recurring events. Returns Ok with the list of
+    events, or Error with a message. *)
+
+(* Test-only helper functions *)
+val matches_filter : t -> filter -> bool
+(** Check if an event matches the given filter *)

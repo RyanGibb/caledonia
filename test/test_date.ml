@@ -1,16 +1,18 @@
 (* Test the Date module *)
 
+open Caledonia_lib
+
 (* Setup a fixed date for testing *)
 let fixed_date = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((0, 0, 0), 0))
 
 let setup_fixed_date () =
-  (Date.get_today := fun () -> fixed_date);
+  (Date.get_today := fun ?tz:_ () -> fixed_date);
   fixed_date
 
 let test_parse_date () =
   let test_expr expr parameter expected =
     try
-      let result = Query.parse_date expr parameter in
+      let result = Result.get_ok @@ Date.parse_date expr parameter in
       let result_str =
         let y, m, d = Ptime.to_date result in
         Printf.sprintf "%04d-%02d-%02d" y m d
@@ -54,7 +56,7 @@ let test_parse_date () =
   test_expr "2025-3-1" `From "2025-03-01";
   test_expr "2025-3-1" `To "2025-03-01";
   (try
-     let _ = Query.parse_date "invalid-format" `From in
+     let _ = Result.get_ok @@ Date.parse_date "invalid-format" `From in
      Alcotest.fail "Should have raised an exception for invalid format"
    with Failure msg ->
      Alcotest.(check bool)
@@ -62,10 +64,8 @@ let test_parse_date () =
        (String.length msg > 0));
   ()
 
-let date_tests fs = [ ("date expression parsing", `Quick, test_parse_date) ]
+let date_tests = [ ("date expression parsing", `Quick, test_parse_date) ]
 
 let () =
-  Eio_main.run @@ fun env ->
-  let fs = Eio.Stdenv.fs env in
   let _ = setup_fixed_date () in
-  Alcotest.run "Query Tests" [ ("query", date_tests fs) ]
+  Alcotest.run "Query Tests" [ ("query", date_tests) ]

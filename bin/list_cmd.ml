@@ -41,9 +41,7 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
         | Some f, None ->
             let one_month_later = Date.add_months f 1 in
             Ok (Some f, one_month_later)
-        | None, Some t ->
-            let today_date = !Date.get_today ~tz () in
-            Ok (Some today_date, Date.to_end_of_day t)
+        | None, Some t -> Ok (None, Date.to_end_of_day t)
         | None, None ->
             let today_date = !Date.get_today ~tz () in
             let one_month_later = Date.add_months today_date 1 in
@@ -52,19 +50,20 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
   let filter =
     match calendars with
     | [] -> None
-    | calendar -> Some (Query.in_calendars calendar)
+    | calendar -> Some (Event.in_calendars calendar)
   in
   let comparator = Query_args.create_event_comparator sort in
-  let* results =
-    Query.query ~fs calendar_dir ?filter ~from ~to_ ~comparator ?limit:count ()
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let events =
+    Event.query events ?filter ~from ~to_ ~comparator ?limit:count ()
   in
-  if results = [] then print_endline "No events found."
-  else print_endline (Event.format_events ~format ~tz results);
+  if events = [] then print_endline "No events found."
+  else print_endline (Event.format_events ~format ~tz events);
   Ok ()
 
 let cmd ~fs calendar_dir =
   let run from_str to_str calendars count format today tomorrow week month
-      timezone sort =
+      timezone sort () =
     match
       run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
         ~week ~month ?timezone ~sort ~fs calendar_dir

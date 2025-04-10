@@ -13,6 +13,8 @@
   yojson
   uuidm
   eio
-  eio_main)
+  eio_main
+  cmdliner
+  sexplib)
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.eq)))
+  (pps ppx_deriving.show ppx_deriving.eq ppx_sexp_conv)))

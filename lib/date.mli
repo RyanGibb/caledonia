@@ -94,6 +94,34 @@ val get_end_of_month : Ptime.t -> Ptime.t
 (** Get the end of the month for the given date. Raises an exception if the date
     cannot be calculated. *)
 
+val get_start_of_year : Ptime.t -> Ptime.t
+(** Get the start of the year (Jan 1) for the given date. Raises an exception if
+    the date cannot be calculated. *)
+
+val get_start_of_current_year : ?tz:Timedesc.Time_zone.t -> unit -> Ptime.t
+(** Get the start of the current year in the specified timezone. If no timezone
+    is provided, uses the default_timezone. Raises an exception if the date
+    cannot be calculated. *)
+
+val get_start_of_next_year : ?tz:Timedesc.Time_zone.t -> unit -> Ptime.t
+(** Get the start of next year in the specified timezone. If no timezone is
+    provided, uses the default_timezone. Raises an exception if the date cannot
+    be calculated. *)
+
+val get_end_of_year : Ptime.t -> Ptime.t
+(** Get the end of the year (Dec 31, 23:59:59) for the given date. Raises an
+    exception if the date cannot be calculated. *)
+
+val get_end_of_current_year : ?tz:Timedesc.Time_zone.t -> unit -> Ptime.t
+(** Get the end of the current year in the specified timezone. If no timezone is
+    provided, uses the default_timezone. Raises an exception if the date cannot
+    be calculated. *)
+
+val get_end_of_next_year : ?tz:Timedesc.Time_zone.t -> unit -> Ptime.t
+(** Get the end of next year in the specified timezone. If no timezone is
+    provided, uses the default_timezone. Raises an exception if the date cannot
+    be calculated. *)
+
 val convert_relative_date_formats :
   ?tz:Timedesc.Time_zone.t ->
   today:bool ->
@@ -136,7 +164,8 @@ val parse_date :
     - "+Nd" - N days from today (e.g., "+7d" for a week from today)
     - "-Nd" - N days before today (e.g., "-7d" for a week ago)
     - "+Nw" - N weeks from today
-    - "+Nm" - N months from today *)
+    - "+Nm" - N months from today
+    - "+Ny" - N years from today *)
 
 val parse_time : string -> (int * int * int, [> `Msg of string ]) result
 (** Parse a time string in HH:MM or HH:MM:SS format. Returns Ok with (hour,

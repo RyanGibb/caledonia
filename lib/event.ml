@@ -577,7 +577,7 @@ let format_event ?(format = `Text) ?tz event =
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
       in
-      let start_date, start_time =
+      let start_str =
         let dt = Date.ptime_to_timedesc ?tz start in
         let y = Timedesc.year dt in
         let m = Timedesc.month dt in
@@ -585,18 +585,8 @@ let format_event ?(format = `Text) ?tz event =
         let h = Timedesc.hour dt in
         let min = Timedesc.minute dt in
         let s = Timedesc.second dt in
-        let dow =
-          match Timedesc.weekday dt with
-          | `Mon -> "monday"
-          | `Tue -> "tuesday"
-          | `Wed -> "wednesday"
-          | `Thu -> "thursday"
-          | `Fri -> "friday"
-          | `Sat -> "saturday"
-          | `Sun -> "sunday"
-        in
-        ( Printf.sprintf "(%04d %02d %02d %s)" y m d dow,
-          Printf.sprintf "(%02d %02d %02d)" h min s )
+        (* Format as a single timestamp string that's easy for Emacs to parse *)
+        Printf.sprintf "\"%04d-%02d-%02dT%02d:%02d:%02d\"" y m d h min s
       in
       let end_str =
         match end_ with
@@ -608,18 +598,7 @@ let format_event ?(format = `Text) ?tz event =
             let h = Timedesc.hour dt in
             let min = Timedesc.minute dt in
             let s = Timedesc.second dt in
-            let dow =
-              match Timedesc.weekday dt with
-              | `Mon -> "monday"
-              | `Tue -> "tuesday"
-              | `Wed -> "wednesday"
-              | `Thu -> "thursday"
-              | `Fri -> "friday"
-              | `Sat -> "saturday"
-              | `Sun -> "sunday"
-            in
-            Printf.sprintf "((%04d %02d %02d %s) (%02d %02d %02d))" y m d dow h
-              min s
+            Printf.sprintf "\"%04d-%02d-%02dT%02d:%02d:%02d\"" y m d h min s
         | None -> "nil"
       in
       let location =
@@ -638,10 +617,10 @@ let format_event ?(format = `Text) ?tz event =
       in
       let id = get_id event in
       Printf.sprintf
-        "((:id \"%s\" :summary \"%s\" :start (%s %s) :end %s :location %s \
+        "((:id \"%s\" :summary \"%s\" :start %s :end %s :location %s \
          :description %s :calendar %s))"
-        (String.escaped id) (String.escaped summary) start_date start_time
-        end_str location description calendar
+        (String.escaped id) (String.escaped summary) start_str end_str location
+        description calendar
 
 let format_events_with_dynamic_columns ?tz events =
   if events = [] then ""
@@ -762,3 +741,101 @@ let expand_recurrences ~from ~to_ event =
         recur_events ~recurrence_ids:other_events ical_event
       in
       collect generator []
+
+let sexp_of_t event =
+  let open Sexplib.Sexp in
+  let start = get_start event in
+  let end_ = get_end event in
+  let format_ptime_iso p =
+    let dt = Date.ptime_to_timedesc p in
+    let y = Timedesc.year dt in
+    let m = Timedesc.month dt in
+    let d = Timedesc.day dt in
+    let h = Timedesc.hour dt in
+    let min = Timedesc.minute dt in
+    let s = Timedesc.second dt in
+    Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
+  in
+  let entries =
+    [
+      Some (List [ Atom "id"; Atom (get_id event) ]);
+      (match get_summary event with
+      | Some s -> Some (List [ Atom "summary"; Atom s ])
+      | None -> None);
+      Some (List [ Atom "start"; Atom (format_ptime_iso start) ]);
+      (match end_ with
+      | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso e) ])
+      | None -> None);
+      (match get_location event with
+      | Some l -> Some (List [ Atom "location"; Atom l ])
+      | None -> None);
+      (match get_description event with
+      | Some d -> Some (List [ Atom "description"; Atom d ])
+      | None -> None);
+      Some (List [ Atom "file"; Atom (snd (get_file event)) ]);
+      Some (List [ Atom "calendar"; Atom (get_calendar_name event) ]);
+    ]
+  in
+  let filtered_entries = List.filter_map Fun.id entries in
+  List filtered_entries
+
+type filter = t -> bool
+
+let text_matches pattern text =
+  let re = Re.Pcre.regexp ~flags:[ `CASELESS ] (Re.Pcre.quote pattern) in
+  Re.Pcre.pmatch ~rex:re text
+
+let summary_contains text event =
+  match get_summary event with
+  | Some summary -> text_matches text summary
+  | None -> false
+
+let description_contains text event =
+  match get_description event with
+  | Some desc -> text_matches text desc
+  | None -> false
+
+let location_contains text event =
+  match get_location event with
+  | Some loc -> text_matches text loc
+  | None -> false
+
+let in_calendars ids event =
+  let id = get_calendar_name event in
+  List.exists (fun col -> col = id) ids
+
+let recurring_only () event = get_recurrence event <> None
+let non_recurring_only () event = get_recurrence event = None
+let with_id id event = get_id event = id
+let and_filter filters event = List.for_all (fun filter -> filter event) filters
+let or_filter filters event = List.exists (fun filter -> filter event) filters
+let not_filter filter event = not (filter event)
+let matches_filter event filter = filter event
+
+let take n list =
+  let rec aux n lst acc =
+    match (lst, n) with
+    | _, 0 -> List.rev acc
+    | [], _ -> List.rev acc
+    | x :: xs, n -> aux (n - 1) xs (x :: acc)
+  in
+  aux n list []
+
+let query_without_recurrence events ?filter ?(comparator = by_start) ?limit () =
+  let events =
+    match filter with Some f -> List.filter f events | None -> events
+  in
+  let events = List.sort comparator events in
+  match limit with Some n when n > 0 -> take n events | _ -> events
+
+let query events ?filter ~from ~to_ ?comparator ?limit () =
+  let events =
+    match filter with Some f -> List.filter f events | None -> events
+  in
+  let events =
+    List.concat_map (fun event -> expand_recurrences event ~from ~to_) events
+  in
+  let events =
+    match comparator with None -> events | Some c -> List.sort c events
+  in
+  match limit with Some n when n > 0 -> take n events | _ -> events

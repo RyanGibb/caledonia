@@ -47,34 +47,35 @@ let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
   in
   (match calendar with
   | [] -> ()
-  | calendars -> filters := Query.in_calendars calendars :: !filters);
+  | calendars -> filters := Event.in_calendars calendars :: !filters);
   (match query_text with
   | Some text ->
-      if summary then filters := Query.summary_contains text :: !filters;
-      if description then filters := Query.description_contains text :: !filters;
-      if location then filters := Query.location_contains text :: !filters;
+      if summary then filters := Event.summary_contains text :: !filters;
+      if description then filters := Event.description_contains text :: !filters;
+      if location then filters := Event.location_contains text :: !filters;
       if not (summary || description || location) then
         filters :=
-          Query.or_filter
+          Event.or_filter
             [
-              Query.summary_contains text;
-              Query.description_contains text;
-              Query.location_contains text;
+              Event.summary_contains text;
+              Event.description_contains text;
+              Event.location_contains text;
             ]
           :: !filters
   | None -> ());
-  if recurring then filters := Query.recurring_only () :: !filters;
-  if non_recurring then filters := Query.non_recurring_only () :: !filters;
+  if recurring then filters := Event.recurring_only () :: !filters;
+  if non_recurring then filters := Event.non_recurring_only () :: !filters;
   (match id with
-  | Some id -> filters := Query.with_id id :: !filters
+  | Some id -> filters := Event.with_id id :: !filters
   | None -> ());
-  let filter = Query.and_filter !filters in
+  let filter = Event.and_filter !filters in
   let comparator = Query_args.create_event_comparator sort in
-  let* results =
-    Query.query ~fs calendar_dir ~filter ~from ~to_ ~comparator ?limit:count ()
+  let* events = Calendar_dir.get_events ~fs calendar_dir in
+  let events =
+    Event.query events ~filter ~from ~to_ ~comparator ?limit:count ()
   in
-  if results = [] then print_endline "No events found."
-  else print_endline (Event.format_events ~tz ~format results);
+  if events = [] then print_endline "No events found."
+  else print_endline (Event.format_events ~tz ~format events);
   Ok ()
 
 let query_text_arg =
@@ -110,7 +111,7 @@ let id_arg =
 let cmd ~fs calendar_dir =
   let run query_text from_str to_str calendars count format summary description
       location id today tomorrow week month recurring non_recurring timezone
-      sort =
+      sort () =
     match
       run ?from_str ?to_str ~calendar:calendars ?count ?query_text ~summary
         ~description ~location ~id ~format ~today ~tomorrow ~week ~month

@@ -1,9 +1,9 @@
 # 📅 Caledonia 🏴󠁧󠁢󠁳󠁣󠁴󠁿
 
-Caledonia is a command-line calendar client.
-Currently, it operates on a [vdir](https://pimutils.org/specs/vdir/) directory of [`.ics`](https://datatracker.ietf.org/doc/html/rfc5545) files (as managed by tools like [vdirsyncer](https://github.com/pimutils/vdirsyncer)).
+Caledonia is a calendar client with command-line and Emacs front-ends.
+It operates on a [vdir](https://pimutils.org/specs/vdir/) directory of [`.ics`](https://datatracker.ietf.org/doc/html/rfc5545) files as managed by tools like [vdirsyncer](https://github.com/pimutils/vdirsyncer), which allows it to interact with CalDAV servers.
 
-It has the `list`, `search`, `show`, `add`, `delete`, and `edit` subcommands, and has full timezone support.
+The command-line has the `list`, `search`, `show`, `add`, `delete`, and `edit` subcommands, and has full timezone support.
 
 An example `list` invocation is,
 
@@ -25,6 +25,8 @@ family     2025-04-27 Sun 21:00 - 22:00 (UTC)              Family chat @Video ca
 personal   2025-04-29 Tue 21:00 - 21:30 (UTC)              Grandma call              8601c255-65fc-4bc9-baa9-465dd7b4cd7d
 work       2025-04-30 Wed 15:00 - 16:00 (Europe/London)    Weekly Meeting            4adcb98dfc1848601e38c2ea55edf71fab786c674d7b72d4c263053b23560a8d
 ```
+
+The Emacs client is defined in [./emacs](./emacs) and communicates with `caled server` using a [S-expression](https://en.wikipedia.org/wiki/S-expression) based protocol.
 
 See [TODO](./TODO.org) for future plans.
 
