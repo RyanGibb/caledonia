@@ -38,6 +38,12 @@ With [opam](https://opam.ocaml.org/),
 $ opam install .
 ```
 
+With [Nix](https://nixos.org/),
+
+```
+$ nix shell 'git+https://tangled.sh/@ryan.freumh.org/caledonia?ref=main'
+```
+
 ## Configuration
 
 Caledonia looks for calendars in the directory specified by the `CALENDAR_DIR` environment variable or in `~/.calendars/` by default.
