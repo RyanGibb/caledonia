@@ -1,4 +1,4 @@
-# 📅 Caledonia 🏴󠁧󠁢󠁳󠁣󠁴󠁿
+# Caledonia
 
 Caledonia is a calendar client with command-line and Emacs front-ends.
 It operates on a [vdir](https://pimutils.org/specs/vdir/) directory of [`.ics`](https://datatracker.ietf.org/doc/html/rfc5545) files as managed by tools like [vdirsyncer](https://github.com/pimutils/vdirsyncer), which allows it to interact with CalDAV servers.
