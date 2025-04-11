@@ -1,8 +1,7 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs";
-    # https://github.com/tweag/opam-nix/issues/117#issuecomment-2781330570
-    opam-nix.url = "github:RyanGibb/opam-nix/timere";
+    opam-nix.url = "github:tweag/opam-nix";
     flake-utils.url = "github:numtide/flake-utils";
     # we pin opam-nix's nixpkgs to follow the flakes, avoiding using two different instances
     opam-nix.inputs.nixpkgs.follows = "nixpkgs";
