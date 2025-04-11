@@ -38,3 +38,4 @@
   - [ ] timezone support
     - [ ] check the date module
   - [ ] support adding, deleting, and editing events
+  - [ ] don't print end date if it's the same as the start date (will require a different sort function)

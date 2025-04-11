@@ -3,9 +3,10 @@
 ;; Copyright (C) 2025 Ryan Gibb
 
 ;; Author: Ryan Gibb <ryan@freumh.org>
-;; Version: 0.4
-;; Package-Requires: ((emacs "27.1"))
-;; Keywords: calendar, caledonia
+;; Maintainer: Ryan Gibb <ryan@freumh.org>
+;; Version: 0.4.0
+;; Keywords: calendar
+;; Package-Requires: ((emacs "24.4"))
 ;; URL: https://ryan.freumh.org/caledonia.html
 
 ;; This file is not part of GNU Emacs.
@@ -27,7 +28,7 @@
   :group 'calendar
   :prefix "caledonia-")
 
-(defcustom caledonia-executable "caled"
+(defcustom caledonia-executable (executable-find "caled")
   "Path to the Caledonia executable."
   :type 'string
   :group 'caledonia)
@@ -109,7 +110,7 @@
 (defvar caledonia--response-line nil
   "Last response line received.")
 (defvar caledonia--response-flag nil
-  "Flag set when response is received.")
+  "Non-nil means a responce has been recieved.")
 (defvar-local caledonia--current-query nil
   "The current query parameters being displayed in this buffer.")
 
@@ -118,6 +119,7 @@
 (defvar caledonia--server-line-buffer "")
 
 (defun caledonia--server-filter (process output)
+  "Filter PROCESS OUTPUT."
   ;; Append to the ongoing buffer for logging/debugging
   (when (buffer-live-p (process-buffer process))
     (with-current-buffer (process-buffer process)
@@ -137,10 +139,12 @@
         (setq caledonia--response-flag t)))))
 
 (defun caledonia--server-sentinel (process event)
+  "Listen on PROCESS for an EVENT."
   (message "Caledonia Server process event: %s (%s)" process event)
   (setq caledonia--server-process nil))
 
 (defun caledonia--ensure-server-running ()
+  "Run the caledonia binary in server mode."
   (unless (and caledonia--server-process (process-live-p caledonia--server-process))
     (message "Caledonia  Starting server...")
     (setq caledonia--server-process
@@ -149,12 +153,13 @@
                          caledonia-executable
                          "server"))
     (unless (and caledonia--server-process (process-live-p caledonia--server-process))
-      (error "Caledonia  Failed to start server process."))
+      (error "Caledonia  Failed to start server process"))
     (set-process-filter caledonia--server-process #'caledonia--server-filter)
     (set-process-sentinel caledonia--server-process #'caledonia--server-sentinel)
     (message "Caledonia  Server started.")))
 
 (defun caledonia--send-request (request-str)
+  "Send REQUEST-STR and get responce back."
   (caledonia--ensure-server-running)
   (setq caledonia--response-line nil)
   (setq caledonia--response-flag nil)
@@ -166,7 +171,7 @@
                 (process-live-p caledonia--server-process))
       (accept-process-output caledonia--server-process 0 100000))) ; Wait 100ms
   (unless caledonia--response-flag
-    (error "Caledonia  Timeout or server died waiting for response."))
+    (error "Caledonia  Timeout or server died waiting for response"))
   (condition-case err
       (let ((response-sexp (read caledonia--response-line)))
         (unless (and (listp response-sexp) (memq (car response-sexp) '(Ok Error)))
@@ -175,11 +180,11 @@
             (error "Caledonia Server Error: %s" (cadr response-sexp))
           ;; Return the (Ok ...) payload
           (cadr response-sexp)))
-    (error (error "Caledonia Failed to parse response line: %s"
-                  caledonia--response-line (error-message-string err)))))
+    (error "Caledonia Failed to parse response line: %s"
+           caledonia--response-line (error-message-string err))))
 
 (defun caledonia--get-events (event-payload)
-  "Parse SEXP-STRING of structure (Events (events...))"
+  "Parse EVENT-PAYLOAD of structure (Events (events...))."
   (if (and (listp event-payload) (eq (car event-payload) 'Events))
       (let ((event-list (cadr event-payload)))
         event-list)
@@ -190,7 +195,7 @@
 ;; UI functions
 
 (defun caledonia--format-timestamp (iso-string &optional format)
-  "Format ISO-8601 time string to human-readable format.
+  "Format ISO-8601 time string ISO-STRING to human-readable format.
 FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified."
   (let* ((parsed (parse-time-string iso-string))
          (time (apply #'encode-time
@@ -252,19 +257,19 @@ FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified."
     tabulated-list-entries))
 
 (defun caledonia--sort-calendar (A B)
-  "Sort function for calendar column."
+  "Sort function for calendar column between A and B."
   (let ((a (aref (cadr A) 0))
         (b (aref (cadr B) 0)))
     (string< a b)))
 
 (defun caledonia--sort-start (A B)
-  "Sort function for date/time column."
+  "Sort function for date/time column between A and B."
   (let ((a (aref (cadr A) 1))
         (b (aref (cadr B) 1)))
     (time-less-p (date-to-time a) (date-to-time b))))
 
 (defun caledonia--sort-end (A B)
-  "Sort function for date/time column."
+  "Sort function for date/time column between A and B."
   (let ((a (aref (cadr A) 2))
         (b (aref (cadr B) 2)))
     (time-less-p (date-to-time a) (date-to-time b))))
@@ -402,14 +407,14 @@ Return non-nil if the event was found."
       (run-with-timer 0.5 nil (lambda () (delete-overlay overlay))))))
 
 (defun caledonia--read-date-range ()
-  "Read a date range from the user with org-mode date picker integration.
+  "Read a date range from the user with `org-mode' date picker integration.
 Returns a cons cell (from-date . to-date).
 The from-date can be nil to indicate no start date constraint."
   (let (from to)
     (setq from
           (if (y-or-n-p "Set a start date? ")
               (org-read-date nil nil nil "From date: " nil nil t)
-            ; empty string differentiates from nil for optional args later on
+                                        ; empty string differentiates from nil for optional args later on
             ""))
     ;; Use org-mode's date picker for To date (must have a value)
     (setq to (org-read-date nil nil nil "To date: " nil nil t))
@@ -421,9 +426,7 @@ The from-date can be nil to indicate no start date constraint."
   "Set the date range for the current calendar view."
   (interactive)
   (when (eq major-mode 'caledonia-mode)
-    (let* ((dates (caledonia--read-date-range
-                   "From date" "" 'caledonia-from-history
-                   "To date" "" 'caledonia-to-history))
+    (let* ((dates (caledonia--read-date-range))
            (from (car dates))
            (to (cdr dates))
            (current-query caledonia--current-query)
@@ -517,17 +520,14 @@ Fetches available calendars from server to allow selection from a list."
   "Set whether to filter by recurring events for the current calendar view."
   (interactive)
   (when (eq major-mode 'caledonia-mode)
-    (let* ((recurring-str (completing-read "Recurring events (yes/no/all, leave empty for all): "
-                                          '("" "yes" "no") nil nil nil))
-           (recurring (cond ((string= recurring-str "yes") t)
-                            ((string= recurring-str "no") nil)
-                            (t nil)))
+    (let* ((recurring (completing-read "Recurring events (yes/no/all, leave empty for all): "
+                                       '("" "yes" "no") nil nil nil))
            (current-query caledonia--current-query)
            (new-query (copy-tree current-query)))
       ;; Update the query with the recurring filter
       (setq new-query (assq-delete-all 'recurring new-query))
-      (when (not (string-empty-p recurring-str))
-        (push `(recurring ,(if (string= recurring-str "yes") t nil)) new-query))
+      (when (not (string-empty-p recurring))
+        (push `(recurring ,(if (string= recurring "yes") t nil)) new-query))
       ;; Execute the updated query
       (caledonia--make-query new-query))))
 
@@ -578,7 +578,8 @@ Fetches available calendars from server to allow selection from a list."
 
 (defun caledonia-open-event-file ()
   "Open the file associated with the event at point.
-If the file contains the event ID, the cursor will be positioned at that location."
+If the file contains the event ID, the cursor will be positioned at that
+location."
   (interactive)
   (when (eq major-mode 'caledonia-mode)
     (let* ((id (tabulated-list-get-id))
@@ -598,8 +599,7 @@ If the file contains the event ID, the cursor will be positioned at that locatio
 
 (defun caledonia-refresh ()
   "Refresh calendar data from disk and update the current view.
-This is useful when calendar files have been modified outside Emacs
-(for example, by a sync program or direct file edits)."
+This is useful when calendar files have been modified outside Emacs."
   (interactive)
   (when (eq major-mode 'caledonia-mode)
     ;; Send a refresh command to clear the server's cache
@@ -613,49 +613,49 @@ This is useful when calendar files have been modified outside Emacs
 
 (defun caledonia-query ()
   "Query events with interactive prompts for all filter parameters.
-Opens a series of prompts to build a complete query and then displays the results.
-After the initial query is displayed, you can further refine the results
-using the caledonia-query-* family of functions."
+Opens a series of prompts to build a complete query and then displays the
+results. After the initial query is displayed, you can further refine the
+results using the caledonia-query-* family of functions."
   (interactive)
   (let* (
-        (dates (caledonia--read-date-range))
-        (from (car dates))
-        (to (cdr dates))
-        (timezone-str (read-string "Timezone (e.g. Europe/London, leave empty for default): "
-                                   nil 'caledonia-timezone-history))
-        (timezone (when (not (string-empty-p timezone-str)) timezone-str))
-        (available-calendars
-         (caledonia--send-request "ListCalendars"))
-        (calendars-list
-         (if (and (listp available-calendars)
-                  (eq (car available-calendars) 'Calendars))
-             (cadr available-calendars)
-           (progn
-             (message "Failed to get calendar list from server")
-             nil)))
-        (selected-calendars
-         (completing-read-multiple
-          "Select calendars (comma-separated, empty for all): "
-          (or calendars-list '()) nil nil nil 'caledonia-calendars-history))
-        (calendars (mapcar #'string-trim selected-calendars))
-        (text (read-string "Search text (leave empty for no text search): "
-                           nil 'caledonia-text-history))
-        (search-in-str (when (and text (not (string-empty-p text)))
-                         (read-string "Search in (summary,description,location - leave empty for all): "
-                                      nil 'caledonia-search-fields-history)))
-        (search-in (when (and search-in-str (not (string-empty-p search-in-str)))
-                     (mapcar (lambda (field)
-                               (intern (string-trim field)))
-                             (split-string search-in-str "," t))))
-        (id (read-string "Event ID (leave empty for all events): "
-                         nil 'caledonia-id-history))
-        (recurring (completing-read "Recurring events (yes/no/all, leave empty for all): "
-                                       '("" "yes" "no") nil nil nil))
-        (limit-str (read-string "Maximum events to show (leave empty for no limit): "
-                                nil 'caledonia-limit-history))
-        (limit (when (and limit-str (not (string-empty-p limit-str)))
-                 (string-to-number limit-str)))
-        (query nil))
+         (dates (caledonia--read-date-range))
+         (from (car dates))
+         (to (cdr dates))
+         (timezone-str (read-string "Timezone (e.g. Europe/London, leave empty for default): "
+                                    nil 'caledonia-timezone-history))
+         (timezone (when (not (string-empty-p timezone-str)) timezone-str))
+         (available-calendars
+          (caledonia--send-request "ListCalendars"))
+         (calendars-list
+          (if (and (listp available-calendars)
+                   (eq (car available-calendars) 'Calendars))
+              (cadr available-calendars)
+            (progn
+              (message "Failed to get calendar list from server")
+              nil)))
+         (selected-calendars
+          (completing-read-multiple
+           "Select calendars (comma-separated, empty for all): "
+           (or calendars-list '()) nil nil nil 'caledonia-calendars-history))
+         (calendars (mapcar #'string-trim selected-calendars))
+         (text (read-string "Search text (leave empty for no text search): "
+                            nil 'caledonia-text-history))
+         (search-in-str (when (and text (not (string-empty-p text)))
+                          (read-string "Search in (summary,description,location - leave empty for all): "
+                                       nil 'caledonia-search-fields-history)))
+         (search-in (when (and search-in-str (not (string-empty-p search-in-str)))
+                      (mapcar (lambda (field)
+                                (intern (string-trim field)))
+                              (split-string search-in-str "," t))))
+         (id (read-string "Event ID (leave empty for all events): "
+                          nil 'caledonia-id-history))
+         (recurring (completing-read "Recurring events (yes/no/all, leave empty for all): "
+                                     '("" "yes" "no") nil nil nil))
+         (limit-str (read-string "Maximum events to show (leave empty for no limit): "
+                                 nil 'caledonia-limit-history))
+         (limit (when (and limit-str (not (string-empty-p limit-str)))
+                  (string-to-number limit-str)))
+         (query nil))
     ;; Build query based on parameters
     (when (and from (not (string-empty-p from)))
       (push `(from ,from) query))
@@ -688,13 +688,13 @@ using the caledonia-query-* family of functions."
 
 (defun caledonia-list (&optional from-date to-date)
   "List calendar in a new buffer within the default date range.
-FROM-DATE and TO-DATE override the default date range if provided.
-TO-DATE is required and will use a default if not specified.
-With prefix arg (C-u), prompts for the date range with an interactive calendar."
+FROM-DATE and TO-DATE override the default date range if provided. TO-DATE is
+required and will use a default if not specified. With prefix arg, prompts for
+the date range with an interactive calendar."
   (interactive
    (when current-prefix-arg
      (let* ((dates (caledonia--read-date-range)))
-            (list (car dates) (cdr dates)))))
+       (list (car dates) (cdr dates)))))
   (let ((buffer (get-buffer-create caledonia--events-buffer))
         (from (or from-date caledonia-list-from-date))
         ;; Ensure to date is always provided
@@ -716,9 +716,9 @@ With prefix arg (C-u), prompts for the date range with an interactive calendar."
 
 (defun caledonia-search (&optional expr from-date to-date)
   "Search for query EXPR with optional FROM-DATE and TO-DATE.
-This is an interactive function which asks user for EXPR if not passed as an argument.
-With prefix arg (C-u), also prompts for date range with an interactive calendar.
-Use this to find events matching specific text across all calendars.
+This is an interactive function which asks user for EXPR if not passed as an
+argument. With prefix arg, also prompts for date range with an interactive
+calendar. Use this to find events matching specific text across all calendars.
 TO-DATE is required; a default will be used if not provided."
   (interactive
    (let* ((search-text (read-string "Search for: " nil 'caledonia-search-prompt-history))
@@ -783,40 +783,6 @@ TO-DATE is required; a default will be used if not provided."
 
 (define-derived-mode caledonia-mode tabulated-list-mode "Caledonia"
   "Major mode for displaying calendar entries in a tabular view.")
-
-;; Define a prefix map specifically for Evil mode
-(defvar caledonia-evil-filter-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "d" 'caledonia-query-date-range)
-    (define-key map "c" 'caledonia-query-calendars)
-    (define-key map "t" 'caledonia-query-text)
-    (define-key map "i" 'caledonia-query-id)
-    (define-key map "r" 'caledonia-query-recurring)
-    (define-key map "l" 'caledonia-query-limit)
-    (define-key map "z" 'caledonia-query-timezone)
-    map)
-  "Evil mode keymap for filter commands in Caledonia mode.")
-
-(eval-after-load 'evil
-  '(progn
-     ;; Basic navigation and commands
-     (evil-define-key 'normal caledonia-mode-map
-       (kbd "RET") 'caledonia-show-event
-       (kbd "M-RET") 'caledonia-open-event-file
-       "l" 'caledonia-list
-       "s" 'caledonia-search
-       "r" 'caledonia-refresh
-       "q" 'quit-window)
-     ;; Set up a proper Evil prefix key
-     (evil-define-key 'normal caledonia-mode-map "f" caledonia-evil-filter-map)))
-
-(defun caledonia--setup-evil-integration ()
-  "Set up Evil integration for Caledonia mode."
-  (when (bound-and-true-p evil-mode)
-    (evil-make-overriding-map caledonia-mode-map 'normal)
-    (evil-normalize-keymaps)))
-
-(add-hook 'caledonia-mode-hook 'caledonia--setup-evil-integration)
 
 (provide 'caledonia)
 ;;; caledonia.el ends here
