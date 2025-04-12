@@ -1,33 +1,33 @@
-- [x] list/search events
-- [x] add/remove events
-- [x] edit events
-- [x] timezones
-- [x] diagnose events failing to parse [[https://github.com/robur-coop/icalendar/issues/14]]
-- [x] [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
-- [x] [[https://github.com/robur-coop/icalendar/issues/15][RRULE with local datetime]]
-- [x] server mode
-- [x] hold =Event='s in-memory instead of parsing them for every =Query=
-- [ ] support vdir metadata
-- [ ] add timezone all date functions
-- [ ] allow editing recurrence-ids
-- [ ] support specifying duration
-- [ ] CalDAV syncing
-- [ ] support complex datetime queries
-- [ ] custom date/time formatting
-- [ ] support querying text with regex
-- [ ] support VTIMEZONE
-- [ ] support VALARMS
-- [ ] support VOTODS
-- [ ] support VCARDS
-- [ ] support VJOURNAL
-- [ ] implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
-- [ ] implement an emacs front end, like mu4e to mu
-  - [x] listing, searching, querying
-  - [x] show details
-  - [x] show file
-  - [x] refresh
-  - [x] list possible calendars
-  - [x] add functions and bindings to change query parameters on the fly
-  - [ ] timezone support
-  - [ ] support adding, deleting, and editing events
-  - [ ] add a org-agenda style view for caledonia-list
+* DONE list/search events
+* DONE add/remove events
+* DONE edit events
+* DONE timezones
+* DONE diagnose events failing to parse [[https://github.com/robur-coop/icalendar/issues/14]]
+* DONE [[https://github.com/robur-coop/icalendar/pull/13][handle RECURRENCE-ID]]
+* DONE [[https://github.com/robur-coop/icalendar/issues/15][RRULE with local datetime]]
+* DONE server mode
+* DONE hold =Event='s in-memory instead of parsing them for every =Query=
+* TODO support vdir metadata
+* TODO add timezone all date functions
+* TODO allow editing recurrence-ids
+* TODO support specifying duration
+* TODO CalDAV syncing
+* TODO support complex datetime queries
+* TODO custom date/time formatting
+* TODO support querying text with regex
+* TODO support VTIMEZONE
+* TODO support VALARMS
+* TODO support VOTODS
+* TODO support VCARDS
+* TODO support VJOURNAL
+* TODO implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
+* TODO implement an emacs front end, like mu4e to mu
+** DONE listing, searching, querying
+** DONE show details
+** DONE show file
+** DONE refresh
+** DONE list possible calendars
+** DONE add functions and bindings to change query parameters on the fly
+** TODO timezone support
+** TODO support adding, deleting, and editing events
+** TODO add a org-agenda style view for caledonia-list
