@@ -7,6 +7,7 @@
 - [x] [[https://github.com/robur-coop/icalendar/issues/15][RRULE with local datetime]]
 - [x] server mode
 - [x] hold =Event='s in-memory instead of parsing them for every =Query=
+- [ ] support vdir metadata
 - [ ] add timezone all date functions
 - [ ] allow editing recurrence-ids
 - [ ] support specifying duration
