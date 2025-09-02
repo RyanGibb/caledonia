@@ -35,8 +35,8 @@ val add_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Add an event to the calendar directory. Takes the current events list and returns
-    an updated events list with the new event added. *)
+(** Add an event to the calendar directory. Takes the current events list and
+    returns an updated events list with the new event added. *)
 
 val edit_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -44,8 +44,8 @@ val edit_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Edit an event in the calendar directory. Takes the current events list and returns
-    an updated events list with the event updated. *)
+(** Edit an event in the calendar directory. Takes the current events list and
+    returns an updated events list with the event updated. *)
 
 val delete_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -53,7 +53,7 @@ val delete_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Delete an event from the calendar directory. Takes the current events list and returns
-    an updated events list with the event removed. *)
+(** Delete an event from the calendar directory. Takes the current events list
+    and returns an updated events list with the event removed. *)
 
 val get_path : t -> string

@@ -6,10 +6,10 @@ open Caledonia_lib.Sexp
 let run ~stdin ~stdout ~fs calendar_dir () =
   let reader = Buf_read.of_flow stdin ~max_size:1_000_000 in
   let ( let* ) = Result.bind in
-  
+
   (* Initialize mutable events variable - will be updated on refresh *)
   let mutable_events = ref (Calendar_dir.get_events ~fs calendar_dir) in
-  
+
   try
     while true do
       let line = Buf_read.line reader in

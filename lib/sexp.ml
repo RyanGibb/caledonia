@@ -18,9 +18,14 @@ type query_request = {
 (* workaround https://github.com/janestreet/ppx_sexp_conv/issues/18#issuecomment-2792574295 *)
 let query_request_of_sexp sexp =
   let open Sexplib.Sexp in
-  let sexp = match sexp with
+  let sexp =
+    match sexp with
     | List ss ->
-      List (List.map (function List (Atom "to" :: v) -> List (Atom "to_" :: v) | v -> v) ss)
+        List
+          (List.map
+             (function
+               | List (Atom "to" :: v) -> List (Atom "to_" :: v) | v -> v)
+             ss)
     | v -> v
   in
   query_request_of_sexp sexp
@@ -28,16 +33,25 @@ let query_request_of_sexp sexp =
 let sexp_of_query_request q =
   let open Sexplib.Sexp in
   let sexp = sexp_of_query_request q in
-  let sexp = match sexp with
+  let sexp =
+    match sexp with
     | List ss ->
-      List (List.map (function List (Atom "to_" :: v) -> List (Atom "to" :: v) | v -> v) ss)
+        List
+          (List.map
+             (function
+               | List (Atom "to_" :: v) -> List (Atom "to" :: v) | v -> v)
+             ss)
     | v -> v
   in
   sexp
 
-type request = ListCalendars | Query of query_request | Refresh [@@deriving sexp]
+type request = ListCalendars | Query of query_request | Refresh
+[@@deriving sexp]
 
-type response_payload = Calendars of string list | Events of Event.t list | Empty
+type response_payload =
+  | Calendars of string list
+  | Events of Event.t list
+  | Empty
 [@@deriving sexp_of]
 
 type response = Ok of response_payload | Error of string [@@deriving sexp_of]

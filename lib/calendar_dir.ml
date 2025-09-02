@@ -69,9 +69,7 @@ let rec load_events_recursive calendar_name dir_path =
     []
 
 let get_calendar_events ~fs calendar_dir calendar_name =
-  let calendar_name_path =
-    get_calendar_path ~fs calendar_dir calendar_name
-  in
+  let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
   if not (Eio.Path.is_directory calendar_name_path) then Error `Not_found
   else
     try
@@ -113,13 +111,13 @@ let add_event ~fs calendar_dir events event =
   let* () = ensure_dir calendar_name_path in
   let calendar = Event.to_ical_calendar event in
   let content = Icalendar.to_ics ~cr:true calendar in
-    try
-      Eio.Path.save ~create:(`Or_truncate 0o644) file content;
-      Ok (event :: events)
-    with Eio.Exn.Io _ as exn ->
-      Error
-        (`Msg
-           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
+  try
+    Eio.Path.save ~create:(`Or_truncate 0o644) file content;
+    Ok (event :: events)
+  with Eio.Exn.Io _ as exn ->
+    Error
+      (`Msg
+         (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
 
 let edit_event ~fs calendar_dir events event =
   let calendar_name = Event.get_calendar_name event in
@@ -147,7 +145,9 @@ let edit_event ~fs calendar_dir events event =
   try
     Eio.Path.save ~create:(`Or_truncate 0o644) file content;
     (* Filter out the old event and add the updated one *)
-    let filtered_events = List.filter (fun e -> Event.get_id e <> event_id) events in
+    let filtered_events =
+      List.filter (fun e -> Event.get_id e <> event_id) events
+    in
     Ok (event :: filtered_events)
   with Eio.Exn.Io _ as exn ->
     Error
@@ -185,7 +185,9 @@ let delete_event ~fs calendar_dir events event =
     | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file content
     | false -> Eio.Path.unlink file);
     (* Filter out the deleted event from the events list *)
-    let filtered_events = List.filter (fun e -> Event.get_id e <> event_id) events in
+    let filtered_events =
+      List.filter (fun e -> Event.get_id e <> event_id) events
+    in
     Ok filtered_events
   with Eio.Exn.Io _ as exn ->
     Error
