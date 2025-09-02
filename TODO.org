@@ -21,6 +21,7 @@
 * TODO support VCARDS
 * TODO support VJOURNAL
 * TODO implement TUI front end with something like [[https://github.com/leostera/minttea][minttea]]
+* TODO don't require re-passing date and time to change event timezone
 * TODO implement an emacs front end, like mu4e to mu
 ** DONE listing, searching, querying
 ** DONE show details
@@ -31,3 +32,4 @@
 ** TODO timezone support
 ** TODO support adding, deleting, and editing events
 ** TODO add a org-agenda style view for caledonia-list
+** TODO check out https://github.com/janestreet/ecaml
