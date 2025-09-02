@@ -1,5 +1,6 @@
-(tests
- (names test_calendar_dir test_date test_event)
- (libraries caledonia_lib alcotest str ptime)
- (deps
-  (source_tree calendar)))
+(library
+ (name caledonia_test)
+ (inline_tests
+  (deps (source_tree calendar)))
+ (libraries caledonia_lib str ptime)
+ (preprocess (pps ppx_expect)))
