@@ -116,3 +116,64 @@ let%expect_test "invalid date format" =
   | Error (`Msg msg) -> Printf.printf "Error (as expected): %s\n" (if String.length msg > 0 then "message received" else "empty message")
   | Ok _ -> Printf.printf "Unexpected success\n");
   [%expect {| Error (as expected): message received |}]
+
+let%expect_test "timezone affects date calculations" =
+  let utc = Timedesc.Time_zone.utc in
+  let tokyo = Timedesc.Time_zone.make_exn "Asia/Tokyo" in (* UTC+9 *)
+  let new_york = Timedesc.Time_zone.make_exn "America/New_York" in (* UTC-5 or UTC-4 *)
+  
+  (* Set a fixed UTC time: 2025-03-27 22:00:00 UTC *)
+  (* This is 2025-03-28 07:00:00 in Tokyo (next day) *)
+  (* This is 2025-03-27 18:00:00 in New York (same day) *)
+  let fixed_utc_time = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((22, 0, 0), 0)) in
+  
+  (* Mock get_today to return our fixed time *)
+  let old_get_today = !Date.get_today in
+  Date.get_today := (fun ?tz:_ () -> fixed_utc_time);
+  
+  (* Test that "today" is different in different timezones *)
+  let today_utc = Date.parse_date ~tz:utc "today" `From in
+  let today_tokyo = Date.parse_date ~tz:tokyo "today" `From in
+  let today_ny = Date.parse_date ~tz:new_york "today" `From in
+  
+  let print_date name result =
+    match result with
+    | Ok ptime ->
+        let y, m, d = Ptime.to_date ptime in
+        Printf.printf "%s: %04d-%02d-%02d\n" name y m d
+    | Error (`Msg msg) -> Printf.printf "%s: Error - %s\n" name msg
+  in
+  
+  print_date "Today UTC" today_utc;
+  print_date "Today Tokyo" today_tokyo;
+  print_date "Today New York" today_ny;
+  
+  (* Restore original *)
+  Date.get_today := old_get_today;
+  
+  [%expect {|
+    Today UTC: 2025-03-27
+    Today Tokyo: 2025-03-28
+    Today New York: 2025-03-27 |}]
+
+let%expect_test "get_start_of_week across timezone boundary" =
+  (* Sunday 11pm UTC is Monday 8am in Tokyo *)
+  (* The start of week should be different! *)
+  let sunday_11pm_utc = Option.get @@ Ptime.of_date_time ((2025, 3, 30), ((23, 0, 0), 0)) in
+  
+  (* In UTC: it's Sunday, so start of week is Monday March 24 *)
+  (* In Tokyo: it's already Monday March 31, so start of week is Monday March 31 *)
+  let start_of_week = Date.get_start_of_week sunday_11pm_utc in
+  
+  let y, m, d = Ptime.to_date start_of_week in
+  Printf.printf "Start of week: %04d-%02d-%02d\n" y m d;
+  Printf.printf "Expected if UTC context: 2025-03-24\n";
+  Printf.printf "Expected if Tokyo context: 2025-03-31\n";
+  Printf.printf "Without ~tz param, we can't control which!\n";
+  
+  [%expect {|
+    Start of week: 2025-03-24
+    Expected if UTC context: 2025-03-24
+    Expected if Tokyo context: 2025-03-31
+    Without ~tz param, we can't control which! |}]
+

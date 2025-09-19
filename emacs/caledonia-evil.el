@@ -6,7 +6,7 @@
 ;; Maintainer: Ryan Gibb <ryan@freumh.org>
 ;; Version: 0.4.0
 ;; Keywords: calendar
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.3") (evil))
 ;; URL: https://ryan.freumh.org/caledonia.html
 ;;
 ;; This file is not part of GNU Emacs.
