@@ -69,24 +69,6 @@
       (goto-char (point-min)))
     (pop-to-buffer buf)))
 
-(defun caldav-create-event ()
-  (interactive)
-  (let ((buf (get-buffer-create "*CalDAV Event*")))
-    (with-current-buffer buf
-      (erase-buffer)
-      (caldav-event-mode)
-      (setq-local caldav--event-overlays nil)
-      (caldav--insert-field "Title" "")
-      (caldav--insert-field "Date" "2025-04-10")
-      (caldav--insert-field "Start Time" "14:00")
-      (caldav--insert-field "End Time" "15:00")
-      (caldav--insert-field "Location" "")
-      (caldav--insert-field "Attendees" "")
-      (caldav--insert-field "Calendar" "Work")
-      (caldav--insert-notes "")
-      (goto-char (point-min)))
-    (pop-to-buffer buf)))
-
 (defun caldav-event-save ()
   (interactive)
   (let (fields)
@@ -114,13 +96,12 @@
 (defun caldav-next-field ()
   "Jump to next editable field."
   (interactive)
-  (let ((pos (point)))
-    (catch 'found
-      (dolist (ov (overlays-in (point) (point-max)))
-        (when (overlay-get ov 'caldav-editable)
-          (goto-char (overlay-start ov))
-          (throw 'found t)))
-      (message "No more fields."))))
+  (catch 'found
+    (dolist (ov (overlays-in (point) (point-max)))
+      (when (overlay-get ov 'caldav-editable)
+        (goto-char (overlay-start ov))
+        (throw 'found t)))
+    (message "No more fields.")))
 
 (define-key caldav-event-mode-map (kbd "TAB") #'caldav-next-field)
 
