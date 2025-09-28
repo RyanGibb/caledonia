@@ -3,11 +3,11 @@
     "flake-compat": {
       "flake": false,
       "locked": {
-        "lastModified": 1696426674,
-        "narHash": "sha256-kvjfFW7WAETZlt09AgDn1MrtKzP7t90Vf7vypd3OL1U=",
+        "lastModified": 1747046372,
+        "narHash": "sha256-CIVLLkVgvHYbgI2UpXvIIBJ12HWgX+fjA8Xf8PUmqCY=",
         "owner": "edolstra",
         "repo": "flake-compat",
-        "rev": "0f9255e01c2351cc7d116c072cb317785dd33b33",
+        "rev": "9100a0f413b0c601e0533d1d94ffd501ce2e7885",
         "type": "github"
       },
       "original": {
@@ -52,11 +52,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1743761221,
-        "narHash": "sha256-g79y3RpbyfOlwm3W4yuMXLmmNI7iDgIDqg10nq8pz5U=",
+        "lastModified": 1759087598,
+        "narHash": "sha256-5Jaso+LQb4QEY1QB0w7C8L+TS1ZZ5Ae4SDb6cetejGk=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "e1964791d66993a8aa5b9f19c1c6dd5827851355",
+        "rev": "eda33573d34d927a6aac1e4ba9f1c9748a50b2d9",
         "type": "github"
       },
       "original": {
@@ -80,16 +80,15 @@
         "opam2json": "opam2json"
       },
       "locked": {
-        "lastModified": 1744376747,
-        "narHash": "sha256-CKZLqLgZtMrUyZKlroISYp6Z4aoN1N9xeyk0dPNxGvc=",
-        "owner": "RyanGibb",
+        "lastModified": 1758871449,
+        "narHash": "sha256-t4BaLmhkEQ4WMPKHn2f54tSkhi+8kTA4bGMrHAO/CR4=",
+        "owner": "tweag",
         "repo": "opam-nix",
-        "rev": "787eeba962582ff0142f445a74f1edb667d7e941",
+        "rev": "9ba2a2c4760e89c51a598be85cb95e92bf9eebc1",
         "type": "github"
       },
       "original": {
-        "owner": "RyanGibb",
-        "ref": "timere",
+        "owner": "tweag",
         "repo": "opam-nix",
         "type": "github"
       }
@@ -97,11 +96,11 @@
     "opam-overlays": {
       "flake": false,
       "locked": {
-        "lastModified": 1726822209,
-        "narHash": "sha256-bwM18ydNT9fYq91xfn4gmS21q322NYrKwfq0ldG9GYw=",
+        "lastModified": 1741116009,
+        "narHash": "sha256-Z0PIW82fHJFvAv/JYpAffnp2DaOjLhsPutqyIrORZd0=",
         "owner": "dune-universe",
         "repo": "opam-overlays",
-        "rev": "f2bec38beca4aea9e481f2fd3ee319c519124649",
+        "rev": "e031bb64e33bf93be963e9a38b28962e6e14381f",
         "type": "github"
       },
       "original": {
@@ -113,11 +112,11 @@
     "opam-repository": {
       "flake": false,
       "locked": {
-        "lastModified": 1740730647,
-        "narHash": "sha256-6veU2WjUGcWDAzLDjoAI1L6GWZd0KIUq19sHcbJS+u8=",
+        "lastModified": 1756946712,
+        "narHash": "sha256-jo24cfjG/Yf1yPppKtL5ogjw6YBCMaMNsfkktRUm018=",
         "owner": "ocaml",
         "repo": "opam-repository",
-        "rev": "f1f75fef5fbf1e8bd1cc9544e50b89ba59f625e2",
+        "rev": "e28312d8e0d10f256ec9998ff7e868cb6e010778",
         "type": "github"
       },
       "original": {
@@ -131,14 +130,15 @@
         "nixpkgs": [
           "opam-nix",
           "nixpkgs"
-        ]
+        ],
+        "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1671540003,
-        "narHash": "sha256-5pXfbUfpVABtKbii6aaI2EdAZTjHJ2QntEf0QD2O5AM=",
+        "lastModified": 1749457947,
+        "narHash": "sha256-+QVm+HOYikF3wUhqSIV8qJbE/feSG+p48fgxIosbHS0=",
         "owner": "tweag",
         "repo": "opam2json",
-        "rev": "819d291ea95e271b0e6027679de6abb4d4f7f680",
+        "rev": "0ecd66fc2bfb25d910522c990dd36412259eac1f",
         "type": "github"
       },
       "original": {
@@ -155,6 +155,21 @@
       }
     },
     "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
+    "systems_2": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
