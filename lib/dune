@@ -1,6 +1,7 @@
 (library
  (name caledonia_lib)
  (public_name caledonia.lib)
+ (modules date event journal todo component calendar_dir sexp format_utils)
  (libraries
   icalendar
   ptime
@@ -15,6 +16,8 @@
   eio
   eio_main
   cmdliner
-  sexplib)
+  sexplib
+  uutf
+  uucp)
  (preprocess
   (pps ppx_deriving.show ppx_deriving.eq ppx_sexp_conv)))

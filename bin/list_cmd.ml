@@ -3,7 +3,7 @@ open Caledonia_lib
 open Query_args
 
 let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
-    ~week ~month ?timezone ~sort ~fs calendar_dir =
+    ~week ~month ?timezone ~sort ~component_type ~incomplete ~overdue ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let tz = Query_args.parse_timezone ~timezone in
   let* from, to_ =
@@ -47,26 +47,112 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
             let one_month_later = Date.add_months today_date 1 in
             Ok (Some today_date, one_month_later))
   in
-  let filter =
+  let* components = Calendar_dir.get_components ~fs calendar_dir in
+
+  let filters = [] in
+  let filters =
+    match component_type with
+    | "all" -> filters
+    | "event" -> Component.is_type CEvent :: filters
+    | "todo" -> Component.is_type CTodo :: filters
+    | "journal" -> Component.is_type CJournal :: filters
+    | _ -> filters
+  in
+  let filters =
     match calendars with
-    | [] -> None
-    | calendar -> Some (Event.in_calendars calendar)
+    | [] -> filters
+    | cals -> Component.in_calendars cals :: filters
   in
-  let comparator = Query_args.create_event_comparator sort in
-  let* events = Calendar_dir.get_events ~fs calendar_dir in
-  let events =
-    Event.query events ?filter ~from ~to_ ~comparator ?limit:count ()
+  let filters =
+    if incomplete then
+      (fun c -> match Component.to_todo c with
+        | Some t -> not (Todo.is_completed t)
+        | None -> false) :: filters
+    else filters
   in
-  if events = [] then print_endline "No events found."
-  else print_endline (Event.format_events ~format ~tz events);
+  let filters =
+    if overdue then
+      (fun c -> match Component.to_todo c with
+        | Some t -> Todo.is_overdue t
+        | None -> false) :: filters
+    else filters
+  in
+
+  let filter = match filters with [] -> None | fs -> Some (Component.and_filter fs) in
+
+  let comparator =
+    match sort with
+    | [] -> Component.by_start
+    | sorts ->
+        List.fold_left (fun acc s ->
+          let open Query_args in
+          let comp = match s.field with
+          | `Start -> if s.descending then Component.descending Component.by_start else Component.by_start
+          | `Summary -> if s.descending then Component.descending Component.by_summary else Component.by_summary
+          | `Calendar -> if s.descending then Component.descending Component.by_calendar_name else Component.by_calendar_name
+          | _ -> Component.by_start
+          in
+          Component.chain acc comp) Component.by_start sorts
+  in
+
+  let components =
+    let filtered = match filter with
+      | None -> components
+      | Some f -> List.filter f components
+    in
+    let filtered =
+      if component_type = "event" then
+        filtered
+        |> List.filter_map (fun c -> match Component.to_event c with
+          | Some e ->
+              let expanded = Event.expand_recurrences ~from ~to_ e in
+              Some (List.map Component.of_event expanded)
+          | None -> None)
+        |> List.flatten
+      else
+        List.filter (fun c ->
+          match Component.get_start c with
+          | None -> from = None && to_str = None
+          | Some start ->
+              let after_from = match from with
+                | None -> true
+                | Some f -> Ptime.compare start f >= 0
+              in
+              let before_to = Ptime.compare start to_ <= 0 in
+              after_from && before_to) filtered
+    in
+    let sorted = List.sort comparator filtered in
+    match count with
+    | None -> sorted
+    | Some n -> List.filteri (fun i _ -> i < n) sorted
+  in
+
+  if components = [] then print_endline "No components found."
+  else print_endline (Component.format_components ~format ~tz:(fun () -> tz) components);
   Ok ()
+
+let incomplete_arg =
+  let doc = "Show only incomplete todos" in
+  Arg.(value & flag & info [ "incomplete" ] ~doc)
+
+let overdue_arg =
+  let doc = "Show only overdue todos" in
+  Arg.(value & flag & info [ "overdue" ] ~doc)
+
+let component_type_filter_arg =
+  let doc = "Filter by component type (all, event, todo, journal)" in
+  let comp_type_enum = ["all"; "event"; "todo"; "journal"] in
+  Arg.(
+    value
+    & opt (enum (List.map (fun s -> (s, s)) comp_type_enum)) "all"
+    & info [ "type" ] ~docv:"TYPE" ~doc)
 
 let cmd ~fs calendar_dir =
   let run from_str to_str calendars count format today tomorrow week month
-      timezone sort () =
+      timezone sort component_type incomplete overdue () =
     match
       run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
-        ~week ~month ?timezone ~sort ~fs calendar_dir
+        ~week ~month ?timezone ~sort ~component_type ~incomplete ~overdue ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -77,34 +163,33 @@ let cmd ~fs calendar_dir =
     Term.(
       const run $ from_arg $ to_arg $ calendar_arg $ count_arg $ format_arg
       $ today_arg $ tomorrow_arg $ week_arg $ month_arg $ timezone_arg
-      $ sort_arg)
+      $ sort_arg $ component_type_filter_arg $ incomplete_arg $ overdue_arg)
   in
-  let doc = "List calendar events" in
+  let doc = "List calendar components (events, todos, journals)" in
   let man =
     [
       `S Manpage.s_description;
       `P
-        "List calendar events within a specified date range. By default, \
-         events from today to one month from today are shown. You can use date \
-         flags to show events for a specific time period, and filter events \
-         with the --sort option.";
+        "List calendar components within a specified date range. By default, \
+         all components from today to one month from today are shown. You can use date \
+         flags to show components for a specific time period, filter by type, \
+         and sort with the --sort option.";
       `S Manpage.s_examples;
-      `I ("List all events for today:", "caled list --today");
-      `I ("List all events for tomorrow:", "caled list --tomorrow");
-      `I ("List all events for the current week:", "caled list --week");
-      `I ("List all events for the current month:", "caled list --month");
+      `I ("List all events for today:", "caled list --today --type event");
+      `I ("List all todos:", "caled list --type todo");
+      `I ("List incomplete todos:", "caled list --type todo --incomplete");
+      `I ("List overdue todos:", "caled list --type todo --overdue");
+      `I ("List journal entries for the month:", "caled list --type journal --month");
+      `I ("List all components for the current week:", "caled list --week");
       `I
-        ( "List events within a specific date range:",
+        ( "List components within a specific date range:",
           "caled list --from 2025-03-27 --to 2025-04-01" );
-      `I ("List events from a specific calendar:", "caled list --calendar work");
-      `I ("List events in JSON format:", "caled list --format json");
-      `I ("Limit the number of events shown:", "caled list --count 5");
+      `I ("List components from a specific calendar:", "caled list --calendar work");
+      `I ("List components in JSON format:", "caled list --format json");
+      `I ("Limit the number of components shown:", "caled list --count 5");
       `I
-        ( "Sort by multiple fields (start time and summary):",
-          "caled list --sort start --sort summary" );
-      `I
-        ( "Sort by calendar name in descending order:",
-          "caled list --sort calendar:desc" );
+        ( "Sort by component type then start time:",
+          "caled list --sort type --sort start" );
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries

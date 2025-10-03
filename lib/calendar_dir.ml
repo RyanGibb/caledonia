@@ -19,6 +19,13 @@ let create ~fs path =
   | Ok () -> Ok path
   | Error e -> Error e
 
+let get_display_name ~fs calendar_dir calendar_name =
+  let displayname_path = Eio.Path.(fs / calendar_dir / calendar_name / "displayname") in
+  try
+    let content = Eio.Path.load displayname_path |> String.trim in
+    if content = "" then calendar_name else content
+  with _ -> calendar_name
+
 let list_calendar_names ~fs calendar_dir =
   try
     let dir = Eio.Path.(fs / calendar_dir) in
@@ -40,21 +47,30 @@ let list_calendar_names ~fs calendar_dir =
          (Fmt.str "Failed to list calendar directory %s: %a" calendar_dir
             Eio.Exn.pp exn))
 
-let rec load_events_recursive calendar_name dir_path =
+let find_calendar_by_display_name ~fs calendar_dir display_name =
+  match list_calendar_names ~fs calendar_dir with
+  | Error _ -> None
+  | Ok calendar_names ->
+      List.find_opt (fun cal_name ->
+        let cal_display_name = get_display_name ~fs calendar_dir cal_name in
+        String.equal cal_display_name display_name || String.equal cal_name display_name
+      ) calendar_names
+
+let rec load_components_recursive calendar_name dir_path =
   try
     Eio.Path.read_dir dir_path
     |> List.fold_left
          (fun acc name ->
            let path = Eio.Path.(dir_path / name) in
            if Eio.Path.is_directory path then
-             acc @ load_events_recursive calendar_name path
+             acc @ load_components_recursive calendar_name path
            else if Filename.check_suffix name ".ics" then (
              try
                let content = Eio.Path.load path in
                match parse content with
                | Ok calendar ->
                    acc
-                   @ Event.events_of_icalendar ~file:path calendar_name calendar
+                   @ Component.components_of_icalendar calendar_name ~file:path calendar
                | Error err ->
                    Printf.eprintf "Failed to parse %s: %s\n%!" (snd path) err;
                    acc
@@ -68,22 +84,28 @@ let rec load_events_recursive calendar_name dir_path =
     Fmt.epr "Failed to read directory %s: %a\n%!" (snd dir_path) Eio.Exn.pp exn;
     []
 
-let get_calendar_events ~fs calendar_dir calendar_name =
+let get_calendar_components ~fs calendar_dir calendar_name =
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
   if not (Eio.Path.is_directory calendar_name_path) then Error `Not_found
   else
     try
-      let events = load_events_recursive calendar_name calendar_name_path in
-      Ok events
+      let display_name = get_display_name ~fs calendar_dir calendar_name in
+      let components = load_components_recursive display_name calendar_name_path in
+      Ok components
     with e ->
       Error
         (`Msg
            (Printf.sprintf "Exception processing directory %s: %s"
               (snd calendar_name_path) (Printexc.to_string e)))
 
+let get_calendar_events ~fs calendar_dir calendar_name =
+  match get_calendar_components ~fs calendar_dir calendar_name with
+  | Ok comps -> Ok (List.filter_map Component.to_event comps)
+  | Error e -> Error e
+
 let ( let* ) = Result.bind
 
-let get_events ~fs calendar_dir =
+let get_components ~fs calendar_dir =
   match list_calendar_names ~fs calendar_dir with
   | Error e -> Error e
   | Ok ids -> (
@@ -91,7 +113,7 @@ let get_events ~fs calendar_dir =
         let rec process_ids acc = function
           | [] -> Ok (List.rev acc)
           | id :: rest -> (
-              match get_calendar_events ~fs calendar_dir id with
+              match get_calendar_components ~fs calendar_dir id with
               | Ok cal -> process_ids (cal :: acc) rest
               | Error `Not_found -> process_ids acc rest
               | Error (`Msg e) -> Error (`Msg e))
@@ -101,97 +123,125 @@ let get_events ~fs calendar_dir =
       with exn ->
         Error
           (`Msg
-             (Printf.sprintf "Error getting calendar_names: %s"
+             (Printf.sprintf "Error getting components: %s"
                 (Printexc.to_string exn))))
 
-let add_event ~fs calendar_dir events event =
-  let calendar_name = Event.get_calendar_name event in
-  let file = Event.get_file event in
+let get_events ~fs calendar_dir =
+  match get_components ~fs calendar_dir with
+  | Ok comps -> Ok (List.filter_map Component.to_event comps)
+  | Error e -> Error e
+
+let add_component ~fs calendar_dir components component =
+  let calendar_name = Component.get_calendar_name component in
+  let file = Component.get_file component in
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
   let* () = ensure_dir calendar_name_path in
-  let calendar = Event.to_ical_calendar event in
+  let calendar = Component.to_ical_calendar component in
   let content = Icalendar.to_ics ~cr:true calendar in
   try
     Eio.Path.save ~create:(`Or_truncate 0o644) file content;
-    Ok (event :: events)
+    Ok (component :: components)
+  with Eio.Exn.Io _ as exn ->
+    Error
+      (`Msg
+         (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
+
+let add_event ~fs calendar_dir events event =
+  let components = List.map Component.of_event events in
+  match add_component ~fs calendar_dir components (Component.of_event event) with
+  | Ok comps -> Ok (List.filter_map Component.to_event comps)
+  | Error e -> Error e
+
+let edit_component ~fs calendar_dir components component =
+  let calendar_name = Component.get_calendar_name component in
+  let component_id = Component.get_id component in
+  let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
+  let* () = ensure_dir calendar_name_path in
+  let new_ical_component = Component.to_ical_component component in
+  let file = Component.get_file component in
+  let existing_props, existing_components = Component.to_ical_calendar component in
+  let calendar =
+    let filtered_components =
+      List.filter
+        (function
+          | `Event e -> snd e.Icalendar.uid <> component_id
+          | `Todo (props, _) ->
+              (match List.find_opt (function `Uid (_, id) -> id = component_id | _ -> false) props with
+              | Some _ -> false
+              | None -> true)
+          | `Journal props ->
+              (match List.find_opt (function `Uid (_, id) -> id = component_id | _ -> false) props with
+              | Some _ -> false
+              | None -> true)
+          | _ -> true)
+        existing_components
+    in
+    (existing_props, new_ical_component :: filtered_components)
+  in
+  let content = Icalendar.to_ics ~cr:true calendar in
+  try
+    Eio.Path.save ~create:(`Or_truncate 0o644) file content;
+    let filtered_components =
+      List.filter (fun c -> Component.get_id c <> component_id) components
+    in
+    Ok (component :: filtered_components)
   with Eio.Exn.Io _ as exn ->
     Error
       (`Msg
          (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
 
 let edit_event ~fs calendar_dir events event =
-  let calendar_name = Event.get_calendar_name event in
-  let event_id = Event.get_id event in
-  let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
-  let* () = ensure_dir calendar_name_path in
-  let ical_event = Event.to_ical_event event in
-  let file = Event.get_file event in
-  let existing_props, existing_components = Event.to_ical_calendar event in
-  let calendar =
-    (* Replace the event with our updated version *)
-    let filtered_components =
-      List.filter
-        (function
-          | `Event e ->
-              (* Filter out the old event *)
-              let uid = e.Icalendar.uid in
-              snd uid <> event_id
-          | _ -> true)
-        existing_components
-    in
-    (existing_props, `Event ical_event :: filtered_components)
-  in
-  let content = Icalendar.to_ics ~cr:true calendar in
-  try
-    Eio.Path.save ~create:(`Or_truncate 0o644) file content;
-    (* Filter out the old event and add the updated one *)
-    let filtered_events =
-      List.filter (fun e -> Event.get_id e <> event_id) events
-    in
-    Ok (event :: filtered_events)
-  with Eio.Exn.Io _ as exn ->
-    Error
-      (`Msg
-         (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
+  let components = List.map Component.of_event events in
+  match edit_component ~fs calendar_dir components (Component.of_event event) with
+  | Ok comps -> Ok (List.filter_map Component.to_event comps)
+  | Error e -> Error e
 
-let delete_event ~fs calendar_dir events event =
-  let calendar_name = Event.get_calendar_name event in
-  let event_id = Event.get_id event in
+let delete_component ~fs calendar_dir components component =
+  let calendar_name = Component.get_calendar_name component in
+  let component_id = Component.get_id component in
   let calendar_name_path = get_calendar_path ~fs calendar_dir calendar_name in
   let* () = ensure_dir calendar_name_path in
-  let file = Event.get_file event in
-  let existing_props, existing_components = Event.to_ical_calendar event in
-  let other_events = ref false in
+  let file = Component.get_file component in
+  let existing_props, existing_components = Component.to_ical_calendar component in
+  let other_components = ref false in
   let calendar =
-    (* Replace the event with our updated version *)
     let filtered_components =
       List.filter
         (function
           | `Event e ->
-              (* Filter out the old event *)
-              let uid = e.Icalendar.uid in
-              if snd uid = event_id then false
-              else (
-                other_events := true;
-                true)
-          | _ -> true)
+              if snd e.Icalendar.uid = component_id then false
+              else (other_components := true; true)
+          | `Todo (props, _) ->
+              (match List.find_opt (function `Uid (_, id) -> id = component_id | _ -> false) props with
+              | Some _ -> false
+              | None -> (other_components := true; true))
+          | `Journal props ->
+              (match List.find_opt (function `Uid (_, id) -> id = component_id | _ -> false) props with
+              | Some _ -> false
+              | None -> (other_components := true; true))
+          | _ -> (other_components := true; true))
         existing_components
     in
     (existing_props, filtered_components)
   in
   let content = Icalendar.to_ics ~cr:true calendar in
   try
-    (match !other_events with
+    (match !other_components with
     | true -> Eio.Path.save ~create:(`Or_truncate 0o644) file content
     | false -> Eio.Path.unlink file);
-    (* Filter out the deleted event from the events list *)
-    let filtered_events =
-      List.filter (fun e -> Event.get_id e <> event_id) events
+    let filtered_components =
+      List.filter (fun c -> Component.get_id c <> component_id) components
     in
-    Ok filtered_events
+    Ok filtered_components
   with Eio.Exn.Io _ as exn ->
     Error
       (`Msg
          (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
+
+let delete_event ~fs calendar_dir events event =
+  let components = List.map Component.of_event events in
+  match delete_component ~fs calendar_dir components (Component.of_event event) with
+  | Ok comps -> Ok (List.filter_map Component.to_event comps)
+  | Error e -> Error e
 
 let get_path t = t

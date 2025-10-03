@@ -179,6 +179,44 @@ let create_event_comparator sort_specs =
          in
          if spec.descending then Event.descending comp else comp)
 
+let create_component_comparator sort_specs =
+  match sort_specs with
+  | [] -> Component.by_start
+  | [ spec ] ->
+      let comp =
+        match spec.field with
+        | `Start -> Component.by_start
+        | `End -> Component.by_start
+        | `Summary -> Component.by_summary
+        | `Location -> Component.by_start
+        | `Calendar -> Component.by_calendar_name
+      in
+      if spec.descending then Component.descending comp else comp
+  | specs ->
+      List.fold_right
+        (fun spec acc ->
+          let comp =
+            match spec.field with
+            | `Start -> Component.by_start
+            | `End -> Component.by_start
+            | `Summary -> Component.by_summary
+            | `Location -> Component.by_start
+            | `Calendar -> Component.by_calendar_name
+          in
+          let comp = if spec.descending then Component.descending comp else comp in
+          Component.chain comp acc)
+        (List.tl specs)
+        (let spec = List.hd specs in
+         let comp =
+           match spec.field with
+           | `Start -> Component.by_start
+           | `End -> Component.by_start
+           | `Summary -> Component.by_summary
+           | `Location -> Component.by_start
+           | `Calendar -> Component.by_calendar_name
+         in
+         if spec.descending then Component.descending comp else comp)
+
 let parse_timezone ~timezone =
   match timezone with
   | Some tzid -> (

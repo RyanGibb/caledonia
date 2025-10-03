@@ -10,24 +10,72 @@ val create :
     calendar_dir if successful, or Error with a message if the directory cannot
     be created or accessed. *)
 
+val get_display_name :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> t -> string -> string
+(** Get the display name for a calendar from its displayname file, falling back
+    to the directory name if the file doesn't exist. *)
+
+val find_calendar_by_display_name :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> t -> string -> string option
+(** Find the calendar directory name by its display name. Returns the directory
+    name if found, or None if no calendar matches the display name. Also accepts
+    the actual directory name as input. *)
+
 val list_calendar_names :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (string list, [> `Msg of string ]) result
 (** List available strings in the calendar_dir. Returns Ok with the list of
     string names if successful, or Error with a message if the directory cannot
     be read. *)
 
+(** Component operations *)
+
+val get_calendar_components :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  string ->
+  (Component.t list, [> `Msg of string | `Not_found ]) result
+(** Get all components in a calendar. *)
+
+val get_components :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (Component.t list, [> `Msg of string ]) result
+(** Get all components in all calendars. *)
+
+val add_component :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  Component.t list ->
+  Component.t ->
+  (Component.t list, [> `Msg of string ]) result
+(** Add a component to the calendar directory. *)
+
+val edit_component :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  Component.t list ->
+  Component.t ->
+  (Component.t list, [> `Msg of string ]) result
+(** Edit a component in the calendar directory. *)
+
+val delete_component :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  Component.t list ->
+  Component.t ->
+  (Component.t list, [> `Msg of string ]) result
+(** Delete a component from the calendar directory. *)
+
+(** Legacy event operations for backward compatibility *)
+
 val get_calendar_events :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
   t ->
   string ->
   (Event.t list, [> `Msg of string | `Not_found ]) result
-(** Get all calendar files in a string. If the calendar_name doesn't exist in
-    the cache, it will be loaded from disk. *)
+(** Get all event components in a calendar (backward compatibility). *)
 
 val get_events :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (Event.t list, [> `Msg of string ]) result
-(** Get all events in all calendar_names. This will load any strings that
-    haven't been loaded yet. *)
+(** Get all events in all calendars (backward compatibility). *)
 
 val add_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -35,8 +83,7 @@ val add_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Add an event to the calendar directory. Takes the current events list and
-    returns an updated events list with the new event added. *)
+(** Add an event to the calendar directory (backward compatibility). *)
 
 val edit_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -44,8 +91,7 @@ val edit_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Edit an event in the calendar directory. Takes the current events list and
-    returns an updated events list with the event updated. *)
+(** Edit an event in the calendar directory (backward compatibility). *)
 
 val delete_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -53,7 +99,6 @@ val delete_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Delete an event from the calendar directory. Takes the current events list
-    and returns an updated events list with the event removed. *)
+(** Delete an event from the calendar directory (backward compatibility). *)
 
 val get_path : t -> string

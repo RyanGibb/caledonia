@@ -7,7 +7,7 @@ let add_cmd = Add_cmd.cmd
 let delete_cmd = Delete_cmd.cmd
 let edit_cmd = Edit_cmd.cmd
 let server_cmd = Server_cmd.cmd
-let doc = "Command-line calendar tool for managing local .ics files"
+let doc = "Command-line calendar tool for managing local .ics files with support for events, todos, and journals"
 let version = "%%VERSION%%"
 
 let main env =

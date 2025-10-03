@@ -21,6 +21,7 @@
   main
   query_args
   event_args
+  component_args
   list_cmd
   search_cmd
   show_cmd

@@ -1,46 +1,44 @@
 open Cmdliner
 open Caledonia_lib
 
-let run ~event_id ~fs calendar_dir =
+let run ~component_id ~fs calendar_dir =
   let ( let* ) = Result.bind in
-  let filter = Event.with_id event_id in
-  let* events = Calendar_dir.get_events ~fs calendar_dir in
-  let events = Event.query_without_recurrence events ~filter () in
-  let* event =
-    match events with
-    | [ event ] -> Ok event
-    | [] -> Error (`Msg ("No events found found for id " ^ event_id))
-    | _ -> Error (`Msg ("More than one found for id " ^ event_id))
+  let* components = Calendar_dir.get_components ~fs calendar_dir in
+  let* component =
+    match List.filter (fun c -> Component.get_id c = component_id) components with
+    | [ comp ] -> Ok comp
+    | [] -> Error (`Msg ("No component found for id " ^ component_id))
+    | _ -> Error (`Msg ("More than one component found for id " ^ component_id))
   in
-  let result = Calendar_dir.delete_event ~fs calendar_dir events event in
+  let result = Calendar_dir.delete_component ~fs calendar_dir components component in
   match result with
   | Error (`Msg msg) -> Error (`Msg msg)
   | Ok _ ->
-      Printf.printf "Event %s successfully deleted.\n" event_id;
+      Printf.printf "Component %s successfully deleted.\n" component_id;
       Ok ()
 
-let event_id_arg =
-  let doc = "ID of the event to delete" in
-  Arg.(required & pos 0 (some string) None & info [] ~docv:"EVENT_ID" ~doc)
+let component_id_arg =
+  let doc = "ID of the component to delete" in
+  Arg.(required & pos 0 (some string) None & info [] ~docv:"ID" ~doc)
 
 let cmd ~fs calendar_dir =
-  let run event_id () =
-    match run ~event_id ~fs calendar_dir with
+  let run component_id () =
+    match run ~component_id ~fs calendar_dir with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
         1
     | Ok () -> 0
   in
-  let term = Term.(const run $ event_id_arg) in
-  let doc = "Delete a calendar event" in
+  let term = Term.(const run $ component_id_arg) in
+  let doc = "Delete a calendar component" in
   let man =
     [
       `S Manpage.s_description;
-      `P "Delete an event from your calendar by its ID.";
-      `P "You can find event IDs by using the `list` or `search` commands.";
+      `P "Delete a component (event, todo, or journal) from your calendar by its ID.";
+      `P "You can find component IDs by using the `list` or `search` commands.";
       `S Manpage.s_examples;
-      `P "Delete an event:";
-      `P "  caled delete 12345678-1234-5678-1234-567812345678";
+      `P "Delete a component:";
+      `P "  caled delete <id>";
       `S Manpage.s_options;
     ]
     @ [ `S Manpage.s_see_also ]

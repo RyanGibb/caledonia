@@ -20,6 +20,7 @@ val create :
     | `Dtend of Icalendar.params * Icalendar.date_or_datetime ] ->
   ?location:string ->
   ?description:string ->
+  ?categories:string list ->
   ?recurrence:Icalendar.recurrence ->
   string ->
   (t, [> `Msg of string ]) result
@@ -39,6 +40,7 @@ val edit :
     | `Dtend of Icalendar.params * Icalendar.date_or_datetime ] ->
   ?location:string ->
   ?description:string ->
+  ?categories:string list ->
   ?recurrence:Icalendar.recurrence ->
   t ->
   (t, [> `Msg of string ]) result
@@ -71,6 +73,7 @@ val get_end_timezone : t -> string option
 val get_duration : t -> Ptime.span option
 val get_location : t -> string option
 val get_description : t -> string option
+val get_categories : t -> string list
 val get_recurrence : t -> Icalendar.recurrence option
 val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t

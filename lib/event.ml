@@ -19,7 +19,7 @@ let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 let ( let* ) = Result.bind
 
 let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
-    ?end_ ?location ?description ?recurrence calendar_name =
+    ?end_ ?location ?description ?categories ?recurrence calendar_name =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
@@ -51,6 +51,11 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
     | Some desc -> `Description (Params.empty, desc) :: props
     | None -> props
   in
+  let props =
+    match categories with
+    | Some cats when cats <> [] -> `Categories (Params.empty, cats) :: props
+    | _ -> props
+  in
   let event =
     {
       dtstamp = (Params.empty, now);
@@ -69,7 +74,7 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
   in
   Ok { calendar_name; file; event; calendar }
 
-let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
+let edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence t =
   let now = Ptime_clock.now () in
   let uid = t.event.uid in
   let dtstart = match start with None -> t.event.dtstart | Some s -> s in
@@ -97,6 +102,7 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
         | `Location _ -> ( match location with None -> true | Some _ -> false)
         | `Description _ -> (
             match description with None -> true | Some _ -> false)
+        | `Categories _ -> ( match categories with None -> true | Some _ -> false)
         | _ -> true)
       t.event.props
   in
@@ -114,6 +120,11 @@ let edit ?summary ?start ?end_ ?location ?description ?recurrence t =
     match description with
     | Some desc -> `Description (Params.empty, desc) :: props
     | None -> props
+  in
+  let props =
+    match categories with
+    | Some cats when cats <> [] -> `Categories (Params.empty, cats) :: props
+    | _ -> props
   in
   let alarms = t.event.alarms in
   let event =
@@ -225,6 +236,12 @@ let get_description t =
   with
   | s :: _ -> Some s
   | _ -> None
+
+let get_categories t =
+  List.filter_map
+    (function `Categories (_, cats) -> Some cats | _ -> None)
+    t.event.props
+  |> List.flatten
 
 let get_recurrence t = Option.map (fun r -> snd r) t.event.rrule
 let get_calendar_name t = t.calendar_name
@@ -474,6 +491,36 @@ let text_event_data ?tz event =
   let date_time = start_date ^ start_time ^ end_date ^ end_time in
   (id, calendar_name, date_time, summary, location)
 
+let format_prop_value = function
+  | `Related (params, s) ->
+      let reltype =
+        match Icalendar.Params.find Reltype params with
+        | Some `Parent -> "PARENT"
+        | Some `Child -> "CHILD"
+        | Some `Sibling -> "SIBLING"
+        | Some (`Ianatoken t) -> t
+        | Some (`Xname (ns, name)) -> ns ^ ":" ^ name
+        | None -> "PARENT"
+      in
+      Some ("Related-To", s ^ " (" ^ reltype ^ ")")
+  | `Seq (_, n) -> Some ("Sequence", string_of_int n)
+  | `Created (_, t) -> Some ("Created", Ptime.to_rfc3339 t)
+  | `Lastmod (_, t) -> Some ("Last-Modified", Ptime.to_rfc3339 t)
+  | `Iana_prop ("RELATED", params, value) ->
+      let reltype =
+        match Icalendar.Params.find Reltype params with
+        | Some `Parent -> "PARENT"
+        | Some `Child -> "CHILD"
+        | Some `Sibling -> "SIBLING"
+        | Some (`Ianatoken t) -> t
+        | Some (`Xname (ns, name)) -> ns ^ ":" ^ name
+        | None -> "PARENT"
+      in
+      Some ("Related-To", value ^ " (" ^ reltype ^ ")")
+  | `Iana_prop (name, _, value) -> Some (name, value)
+  | `Xprop ((ns, name), _, value) -> Some (ns ^ ":" ^ name, value)
+  | _ -> None
+
 let format_event ?(format = `Text) ?tz event =
   let start = get_start event in
   let end_ = get_end event in
@@ -526,9 +573,14 @@ let format_event ?(format = `Text) ?tz event =
         |> Option.value ~default:""
       in
       let summary_str = format_opt "Summary" Fun.id (get_summary event) in
+      let other_props_str =
+        List.filter_map format_prop_value event.event.props
+        |> List.map (fun (name, value) -> Printf.sprintf "%s: %s\n" name value)
+        |> String.concat ""
+      in
       let file_str = format_opt "File" Fun.id (Some (snd (get_file event))) in
-      Printf.sprintf "%s%s%s%s%s%s%s" summary_str start_str end_str location_str
-        description_str rrule_str file_str
+      Printf.sprintf "%s%s%s%s%s%s%s%s" summary_str start_str end_str location_str
+        description_str rrule_str other_props_str file_str
   | `Json ->
       let open Yojson.Safe in
       let json =
@@ -660,9 +712,11 @@ let format_events_with_dynamic_columns ?tz events =
           let summary_loc =
             summary ^ if location <> "" then " " ^ location else ""
           in
-          Printf.sprintf "%-*s  %-*s  %-*s  %-*s" max_cal_width cal
-            max_date_width date max_summary_loc_width summary_loc max_id_width
-            id)
+          Printf.sprintf "%s  %s  %s  %s"
+            (Format_utils.pad_to_width max_cal_width cal)
+            (Format_utils.pad_to_width max_date_width date)
+            (Format_utils.pad_to_width max_summary_loc_width summary_loc)
+            (Format_utils.pad_to_width max_id_width id))
         event_data
     in
     String.concat "\n" formatted_events
