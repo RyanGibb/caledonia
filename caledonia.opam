@@ -28,6 +28,8 @@ depends: [
   "timedesc" {>= "0.8.0"}
   "ppx_sexp_conv" {>= "0.15.1"}
   "alcotest" {>= "1.8.0" & with-test}
+  "uucp" {>= "16.0.0"}
+  "uutf" {>= "1.0.4"}
 ]
 pin-depends: [
   ["icalendar.dev" "git+https://github.com/RyanGibb/icalendar#3695e1c9cd15b3eec6e2f14ed53bb5bc8814d061"]
