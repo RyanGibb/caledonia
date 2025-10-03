@@ -285,7 +285,7 @@ let format_journal ?(format = `Text) ?tz journal =
         "((:id \"%s\" :summary \"%s\" :start %s :categories %s :calendar %s))"
         (String.escaped id) (String.escaped summary) start_str cats_str calendar
 
-let format_journals_with_dynamic_columns ?tz journals =
+let format_journals_with_dynamic_columns ?tz ?get_color journals =
   if journals = [] then ""
   else
     let journal_data = List.map (text_journal_data ?tz) journals in
@@ -296,8 +296,9 @@ let format_journals_with_dynamic_columns ?tz journals =
     let max_id_width = Format_utils.max_width (fun (_, _, _, _, id) -> id) journal_data in
     List.map
       (fun (cal, date, summary, cats, id) ->
+        let color = match get_color with Some f -> f cal | None -> None in
         Printf.sprintf "%s  %s  %s  %s  %s"
-          (Format_utils.pad_to_width max_cal_width cal)
+          (Format_utils.pad_to_width ?color max_cal_width cal)
           (Format_utils.pad_to_width max_date_width date)
           (Format_utils.pad_to_width max_summary_width summary)
           (Format_utils.pad_to_width max_cats_width cats)
@@ -305,9 +306,9 @@ let format_journals_with_dynamic_columns ?tz journals =
       journal_data
     |> String.concat "\n"
 
-let format_journals ?(format = `Text) ?tz journals =
+let format_journals ?(format = `Text) ?tz ?get_color journals =
   match format with
-  | `Text -> format_journals_with_dynamic_columns ?tz journals
+  | `Text -> format_journals_with_dynamic_columns ?tz ?get_color journals
   | `Json ->
       let json_journals =
         List.map

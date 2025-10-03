@@ -75,6 +75,10 @@ let timezone_arg =
     & opt (some string) None
     & info [ "timezone"; "z" ] ~docv:"TIMEZONE" ~doc)
 
+let color_arg =
+  let doc = "Enable colorized output using calendar colors (default: true)" in
+  Arg.(value & vflag `Auto [ (`Always, info [ "color" ] ~doc); (`Never, info [ "no-color" ] ~doc:"Disable colorized output") ])
+
 let sort_field_enum =
   [
     ("start", `Start);

@@ -42,4 +42,4 @@ val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
 val format_journal : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
-val format_journals : ?format:format -> ?tz:Timedesc.Time_zone.t -> t list -> string
+val format_journals : ?format:format -> ?tz:Timedesc.Time_zone.t -> ?get_color:(string -> string option) -> t list -> string

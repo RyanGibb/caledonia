@@ -28,10 +28,36 @@ let display_width s =
     | `Malformed _ -> acc + 1
   ) 0 s
 
-let pad_to_width target_width s =
+let parse_color color_str =
+  let color_str = String.trim color_str in
+  if String.length color_str > 0 && color_str.[0] = '#' then
+    let hex = String.sub color_str 1 (String.length color_str - 1) in
+    try
+      let r = int_of_string ("0x" ^ String.sub hex 0 2) in
+      let g = int_of_string ("0x" ^ String.sub hex 2 2) in
+      let b = int_of_string ("0x" ^ String.sub hex 4 2) in
+      Some (r, g, b)
+    with _ -> None
+  else None
+
+let colorize ?color text =
+  match color with
+  | None -> text
+  | Some color_str ->
+      (match parse_color color_str with
+      | None -> text
+      | Some (r, g, b) ->
+          Printf.sprintf "\027[38;2;%d;%d;%dm%s\027[0m" r g b text)
+
+let pad_to_width ?(color:string option) target_width s =
   let current_width = display_width s in
-  if current_width >= target_width then s
-  else s ^ String.make (target_width - current_width) ' '
+  let padded =
+    if current_width >= target_width then s
+    else s ^ String.make (target_width - current_width) ' '
+  in
+  match color with
+  | None -> padded
+  | Some c -> colorize ~color:c padded
 
 let max_width f data =
   List.fold_left (fun acc x -> max acc (display_width (f x))) 0 data

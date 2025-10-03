@@ -26,6 +26,13 @@ let get_display_name ~fs calendar_dir calendar_name =
     if content = "" then calendar_name else content
   with _ -> calendar_name
 
+let get_color ~fs calendar_dir calendar_name =
+  let color_path = Eio.Path.(fs / calendar_dir / calendar_name / "color") in
+  try
+    let content = Eio.Path.load color_path |> String.trim in
+    if content = "" then None else Some content
+  with _ -> None
+
 let list_calendar_names ~fs calendar_dir =
   try
     let dir = Eio.Path.(fs / calendar_dir) in

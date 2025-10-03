@@ -15,6 +15,11 @@ val get_display_name :
 (** Get the display name for a calendar from its displayname file, falling back
     to the directory name if the file doesn't exist. *)
 
+val get_color :
+  fs:Eio.Fs.dir_ty Eio.Path.t -> t -> string -> string option
+(** Get the color for a calendar from its color file. Returns None if the file
+    doesn't exist or is empty. *)
+
 val find_calendar_by_display_name :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> string -> string option
 (** Find the calendar directory name by its display name. Returns the directory

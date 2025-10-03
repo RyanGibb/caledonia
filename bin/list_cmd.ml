@@ -127,8 +127,14 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
     | Some n -> List.filteri (fun i _ -> i < n) sorted
   in
 
-  if components = [] then print_endline "No components found."
-  else print_endline (Component.format_components ~format ~tz:(fun () -> tz) components);
+  (if components = [] then print_endline "No components found."
+  else
+    let get_color cal_display_name =
+      match Calendar_dir.find_calendar_by_display_name ~fs calendar_dir cal_display_name with
+      | Some cal_dir_name -> Calendar_dir.get_color ~fs calendar_dir cal_dir_name
+      | None -> None
+    in
+    print_endline (Component.format_components ~format ~tz:(fun () -> tz) ~get_color components));
   Ok ()
 
 let incomplete_arg =

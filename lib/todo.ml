@@ -498,7 +498,7 @@ let format_todo ?(format = `Text) ?tz todo =
         "((:id \"%s\" :summary \"%s\" :due %s :priority %s :percent %s :status %s :calendar %s))"
         (String.escaped id) (String.escaped summary) due_str priority percent status_str calendar
 
-let format_todos_with_dynamic_columns ?tz todos =
+let format_todos_with_dynamic_columns ?tz ?get_color todos =
   if todos = [] then ""
   else
     let trees = build_todo_tree todos in
@@ -523,10 +523,11 @@ let format_todos_with_dynamic_columns ?tz todos =
     let rec format_tree depth tree =
       let indent = String.make (depth * 2) ' ' in
       let cal, start, due, status, summary, percent, cats, id = text_todo_data ?tz tree.todo in
+      let color = match get_color with Some f -> f cal | None -> None in
       let status_with_indent = indent ^ status in
       let line =
         Printf.sprintf "%s  %s  %s  %s  %s  %s  %s  %s"
-          (Format_utils.pad_to_width max_cal_width cal)
+          (Format_utils.pad_to_width ?color max_cal_width cal)
           (Format_utils.pad_to_width max_start_width start)
           (Format_utils.pad_to_width max_due_width due)
           (Format_utils.pad_to_width max_status_width status_with_indent)
@@ -541,9 +542,9 @@ let format_todos_with_dynamic_columns ?tz todos =
     List.concat_map (format_tree 0) trees
     |> String.concat "\n"
 
-let format_todos ?(format = `Text) ?tz todos =
+let format_todos ?(format = `Text) ?tz ?get_color todos =
   match format with
-  | `Text -> format_todos_with_dynamic_columns ?tz todos
+  | `Text -> format_todos_with_dynamic_columns ?tz ?get_color todos
   | `Json ->
       let json_todos =
         List.map

@@ -674,7 +674,7 @@ let format_event ?(format = `Text) ?tz event =
         (String.escaped id) (String.escaped summary) start_str end_str location
         description calendar
 
-let format_events_with_dynamic_columns ?tz events =
+let format_events_with_dynamic_columns ?tz ?get_color events =
   if events = [] then ""
   else
     let event_data = List.map (text_event_data ?tz) events in
@@ -709,11 +709,12 @@ let format_events_with_dynamic_columns ?tz events =
     let formatted_events =
       List.map
         (fun (id, cal, date, summary, location) ->
+          let color = match get_color with Some f -> f cal | None -> None in
           let summary_loc =
             summary ^ if location <> "" then " " ^ location else ""
           in
           Printf.sprintf "%s  %s  %s  %s"
-            (Format_utils.pad_to_width max_cal_width cal)
+            (Format_utils.pad_to_width ?color max_cal_width cal)
             (Format_utils.pad_to_width max_date_width date)
             (Format_utils.pad_to_width max_summary_loc_width summary_loc)
             (Format_utils.pad_to_width max_id_width id))
@@ -721,7 +722,7 @@ let format_events_with_dynamic_columns ?tz events =
     in
     String.concat "\n" formatted_events
 
-let format_events ?(format = `Text) ?tz events =
+let format_events ?(format = `Text) ?tz ?get_color events =
   match format with
   | `Json ->
       let json_events =
@@ -738,7 +739,7 @@ let format_events ?(format = `Text) ?tz events =
       ^ String.concat "\n "
           (List.map (fun e -> format_event ~format:`Sexp ?tz e) events)
       ^ ")"
-  | `Text -> format_events_with_dynamic_columns ?tz events
+  | `Text -> format_events_with_dynamic_columns ?tz ?get_color events
   | _ ->
       String.concat "\n" (List.map (fun e -> format_event ~format ?tz e) events)
 

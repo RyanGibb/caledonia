@@ -118,7 +118,7 @@ val format_event : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
 (** Format a single event, optionally using the specified timezone *)
 
 val format_events :
-  ?format:format -> ?tz:Timedesc.Time_zone.t -> t list -> string
+  ?format:format -> ?tz:Timedesc.Time_zone.t -> ?get_color:(string -> string option) -> t list -> string
 (** Format a list of events, optionally using the specified timezone *)
 
 val sexp_of_t : t -> Sexplib0.Sexp.t

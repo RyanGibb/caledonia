@@ -101,8 +101,14 @@ let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
     let sorted = List.sort comparator filtered_with_dates in
     match count with None -> sorted | Some n -> List.filteri (fun i _ -> i < n) sorted
   in
-  if components = [] then print_endline "No components found."
-  else print_endline (Component.format_components ~tz:(fun () -> tz) ~format components);
+  (if components = [] then print_endline "No components found."
+  else
+    let get_color cal_display_name =
+      match Calendar_dir.find_calendar_by_display_name ~fs calendar_dir cal_display_name with
+      | Some cal_dir_name -> Calendar_dir.get_color ~fs calendar_dir cal_dir_name
+      | None -> None
+    in
+    print_endline (Component.format_components ~tz:(fun () -> tz) ~format ~get_color components));
   Ok ()
 
 let query_text_arg =

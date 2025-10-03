@@ -54,6 +54,6 @@ type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
 val format_component : ?format:format -> ?tz:(unit -> Timedesc.Time_zone.t) -> t -> string
 val format_components :
-  ?format:format -> ?tz:(unit -> Timedesc.Time_zone.t) -> t list -> string
+  ?format:format -> ?tz:(unit -> Timedesc.Time_zone.t) -> ?get_color:(string -> string option) -> t list -> string
 
 val sexp_of_t : t -> Sexplib0.Sexp.t
