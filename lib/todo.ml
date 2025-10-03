@@ -215,7 +215,7 @@ let get_summary t =
     t.props
 
 let get_start t =
-  match List.find_map
+  List.find_map
     (function
       | `Dtstart (_, `Date date) ->
           let (y, m, d) = date in
@@ -225,12 +225,6 @@ let get_start t =
           | `Utc t | `Local t | `With_tzid (t, _) -> Some t)
       | _ -> None)
     t.props
-  with
-  | Some start -> Some start
-  | None ->
-      List.find_map
-        (function `Dtstamp (_, t) -> Some t | _ -> None)
-        t.props
 
 let get_due t =
   List.find_map
