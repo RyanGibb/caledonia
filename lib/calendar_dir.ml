@@ -58,10 +58,21 @@ let find_calendar_by_display_name ~fs calendar_dir display_name =
   match list_calendar_names ~fs calendar_dir with
   | Error _ -> None
   | Ok calendar_names ->
-      List.find_opt (fun cal_name ->
-        let cal_display_name = get_display_name ~fs calendar_dir cal_name in
-        String.equal cal_display_name display_name || String.equal cal_name display_name
-      ) calendar_names
+      (* First try to find by display name from displayname file *)
+      let with_displayname_file = List.find_opt (fun cal_name ->
+        let displayname_path = Eio.Path.(fs / calendar_dir / cal_name / "displayname") in
+        try
+          let content = Eio.Path.load displayname_path |> String.trim in
+          content <> "" && String.equal content display_name
+        with _ -> false
+      ) calendar_names in
+      match with_displayname_file with
+      | Some found -> Some found
+      | None ->
+          (* Fall back to matching by directory name *)
+          List.find_opt (fun cal_name ->
+            String.equal cal_name display_name
+          ) calendar_names
 
 let rec load_components_recursive calendar_name dir_path =
   try
