@@ -110,16 +110,26 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
           | None -> None)
         |> List.flatten
       else
-        List.filter (fun c ->
-          match Component.get_start c with
-          | None -> from = None && to_str = None
-          | Some start ->
-              let after_from = match from with
-                | None -> true
-                | Some f -> Ptime.compare start f >= 0
-              in
-              let before_to = Ptime.compare start to_ <= 0 in
-              after_from && before_to) filtered
+        (* For "all" type, we need to expand recurring events but keep other components as-is *)
+        filtered
+        |> List.map (fun c ->
+            match Component.to_event c with
+            | Some e when Event.get_recurrence e <> None ->
+                (* Expand recurring events *)
+                let expanded = Event.expand_recurrences ~from ~to_ e in
+                List.map Component.of_event expanded
+            | _ ->
+                (* For non-recurring events and other component types, filter by date range *)
+                (match Component.get_start c with
+                | None -> if from = None && to_str = None then [c] else []
+                | Some start ->
+                    let after_from = match from with
+                      | None -> true
+                      | Some f -> Ptime.compare start f >= 0
+                    in
+                    let before_to = Ptime.compare start to_ <= 0 in
+                    if after_from && before_to then [c] else []))
+        |> List.flatten
     in
     let sorted = List.sort comparator filtered in
     match count with
