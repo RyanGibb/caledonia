@@ -38,3 +38,4 @@
 ** TODO add a org-agenda style view for caledonia-list
 ** TODO check out https://github.com/janestreet/ecaml
 * TODO support more fields for sorting and searching
+* TODO command line autocomplete of ids
