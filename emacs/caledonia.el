@@ -221,8 +221,12 @@ FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified."
       (let* ((calendar (caledonia--get-key 'calendar event))
              (start (caledonia--get-key 'start event))
              (end (caledonia--get-key 'end event))
+             (start-tz (cadr (assoc 'start_tz event)))
              (cal-str (if (not calendar) "unkown" calendar))
              (start-str (caledonia--format-timestamp start))
+             (start-str (if start-tz
+                            (format "%s (%s)" start-str start-tz)
+                          start-str))
              (end-str (when end
                         (caledonia--format-timestamp (format "%s" end)))))
         (setq max-calendar-width (max max-calendar-width (length cal-str)))
@@ -241,7 +245,11 @@ FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified."
                            (end (caledonia--get-key 'end event))
                            (location (caledonia--get-key 'location event))
                            (calendar (caledonia--get-key 'calendar event))
+                           (start-tz (caledonia--get-key 'start_tz event))
                            (start-str (caledonia--format-timestamp start))
+                           (start-str (if start-tz
+                                          (format "%s (%s)" start-str start-tz)
+                                        start-str))
                            (end-str (if end (caledonia--format-timestamp (format "%s" end)) ""))
                            (start-str (if end (format "%s -" start-str) start-str))
                            (location-str (if location (concat " @ " location) ""))
@@ -351,6 +359,8 @@ Return non-nil if the event was found."
                (location (caledonia--get-key 'location event))
                (calendar (caledonia--get-key 'calendar event))
                (file (caledonia--get-key 'file event))
+               (start-tz (caledonia--get-key 'start_tz event))
+               (end-tz (caledonia--get-key 'end_tz event))
                (start-str (when start (caledonia--format-timestamp start)))
                (end-str (when end (caledonia--format-timestamp end))))
           (when id
@@ -360,9 +370,13 @@ Return non-nil if the event was found."
           (when calendar
             (insert (propertize "Calendar: " 'face 'bold) calendar "\n"))
           (when start-str
-            (insert (propertize "Start: " 'face 'bold) start-str "\n"))
+            (insert (propertize "Start: " 'face 'bold) start-str
+                    (if start-tz (format " (%s)" start-tz) "")
+                    "\n"))
           (when end-str
-            (insert (propertize "End: " 'face 'bold) end-str "\n"))
+            (insert (propertize "End: " 'face 'bold) end-str
+                    (if end-tz (format " (%s)" end-tz) "")
+                    "\n"))
           (when location
             (insert (propertize "Location: " 'face 'bold) location "\n"))
           (when file
@@ -743,6 +757,114 @@ TO-DATE is required; a default will be used if not provided."
         (caledonia--make-query query)
         (switch-to-buffer buffer)))))
 
+;; Event CRUD operations
+
+(defun caledonia--get-available-calendars ()
+  "Get list of available calendar names from server."
+  (let ((response (caledonia--send-request "ListCalendars")))
+    (if (and (listp response) (eq (car response) 'Calendars))
+        (cadr response)
+      nil)))
+
+(defun caledonia--read-date (prompt &optional default)
+  "Read a date with PROMPT using org-read-date, with optional DEFAULT."
+  (let ((date (org-read-date nil nil nil prompt
+                             (when default
+                               (date-to-time default))
+                             nil t)))
+    (when (and date (not (string-empty-p date)))
+      date)))
+
+(defun caledonia--read-time (prompt &optional default)
+  "Read a time with PROMPT, with optional DEFAULT value."
+  (let ((time (read-string (if default
+                               (format "%s [%s]: " prompt default)
+                             (format "%s: " prompt))
+                           nil nil default)))
+    (when (and time (not (string-empty-p time)))
+      time)))
+
+(defun caledonia--sexp-field (key value)
+  "Format KEY VALUE pair as sexp field string, or empty string if VALUE is nil."
+  (cond
+   ((null value) "")
+   ((listp value)
+    (format "(%s (%s))" key (mapconcat (lambda (s) (format "%S" s)) value " ")))
+   (t (format "(%s %S)" key value))))
+
+(defun caledonia--build-sexp-fields (fields)
+  "Build sexp string from alist FIELDS, omitting nil values."
+  (let ((parts (cl-remove-if #'string-empty-p
+                              (mapcar (lambda (pair)
+                                        (caledonia--sexp-field (car pair) (cdr pair)))
+                                      fields))))
+    (mapconcat #'identity parts " ")))
+
+(defun caledonia-add-event ()
+  "Add a new event via the server."
+  (interactive)
+  (let* ((calendars (caledonia--get-available-calendars))
+         (calendar (completing-read "Calendar: " calendars nil t))
+         (summary (read-string "Summary: "))
+         (start-date (caledonia--read-date "Start date"))
+         (start-time (caledonia--read-time "Start time (HH:MM)"))
+         (end-date (caledonia--read-date "End date"))
+         (end-time (caledonia--read-time "End time (HH:MM)"))
+         (location (read-string "Location (empty for none): "))
+         (description (read-string "Description (empty for none): "))
+         (fields `(("calendar" . ,calendar)
+                   ("summary" . ,summary)
+                   ("start_date" . ,start-date)
+                   ("start_time" . ,(when start-time start-time))
+                   ("end_date" . ,(when (and end-date (not (string-empty-p end-date))) end-date))
+                   ("end_time" . ,(when (and end-time (not (string-empty-p end-time))) end-time))
+                   ("location" . ,(when (not (string-empty-p location)) location))
+                   ("description" . ,(when (not (string-empty-p description)) description))))
+         (request-str (format "(CreateEvent (%s))" (caledonia--build-sexp-fields fields))))
+    (caledonia--send-request request-str)
+    (message "Event created: %s" summary)
+    (when (eq major-mode 'caledonia-mode)
+      (caledonia-refresh))))
+
+(defun caledonia-edit-event ()
+  "Edit the event at point via the server."
+  (interactive)
+  (when (eq major-mode 'caledonia-mode)
+    (let* ((id-str (tabulated-list-get-id))
+           (event (when id-str (get-text-property 0 'event-data id-str))))
+      (unless event
+        (user-error "No event at point"))
+      (let* ((id (caledonia--get-key 'id event))
+             (cur-summary (or (caledonia--get-key 'summary event) ""))
+             (cur-location (or (caledonia--get-key 'location event) ""))
+             (cur-description (or (caledonia--get-key 'description event) ""))
+             (summary (read-string (format "Summary [%s]: " cur-summary) nil nil cur-summary))
+             (location (read-string (format "Location [%s]: " cur-location) nil nil cur-location))
+             (description (read-string (format "Description [%s]: " cur-description) nil nil cur-description))
+             (fields `(("id" . ,id)
+                       ("summary" . ,(unless (string= summary cur-summary) summary))
+                       ("location" . ,(unless (string= location cur-location) location))
+                       ("description" . ,(unless (string= description cur-description) description))))
+             (request-str (format "(EditEvent (%s))" (caledonia--build-sexp-fields fields))))
+        (caledonia--send-request request-str)
+        (message "Event updated: %s" summary)
+        (caledonia-refresh)))))
+
+(defun caledonia-delete-event ()
+  "Delete the event at point via the server."
+  (interactive)
+  (when (eq major-mode 'caledonia-mode)
+    (let* ((id-str (tabulated-list-get-id))
+           (event (when id-str (get-text-property 0 'event-data id-str))))
+      (unless event
+        (user-error "No event at point"))
+      (let* ((id (caledonia--get-key 'id event))
+             (summary (or (caledonia--get-key 'summary event) "(no summary)")))
+        (when (y-or-n-p (format "Delete event '%s'? " summary))
+          (caledonia--send-request (format "(DeleteEvent %S)" id))
+          (message "Event deleted: %s" summary)
+          (caledonia-refresh))))))
+
 ;; Modes
 ;;;###autoload
 
@@ -767,6 +889,10 @@ TO-DATE is required; a default will be used if not provided."
     (define-key map (kbd "l") 'caledonia-list)
     (define-key map (kbd "s") 'caledonia-search)
     (define-key map (kbd "r") 'caledonia-refresh)
+    (define-key map (kbd "a") 'caledonia-add-event)
+    (define-key map (kbd "e") 'caledonia-edit-event)
+    (define-key map (kbd "d") 'caledonia-delete-event)
+    (define-key map (kbd "A") 'caledonia-agenda)
     (define-key map (kbd "q") 'quit-window)
     ;; Individual filter command bindings
     (define-key map (kbd "C-c d") 'caledonia-query-date-range)
@@ -783,6 +909,189 @@ TO-DATE is required; a default will be used if not provided."
 
 (define-derived-mode caledonia-mode tabulated-list-mode "Caledonia"
   "Major mode for displaying calendar entries in a tabular view.")
+
+;; Agenda view
+
+(defvar caledonia--agenda-buffer "*Caledonia Agenda*"
+  "Buffer name for the agenda view.")
+
+(defface caledonia-agenda-date-face
+  '((t :inherit org-agenda-date :weight bold))
+  "Face used for date headers in the agenda view."
+  :group 'caledonia)
+
+(defface caledonia-agenda-time-face
+  '((t :inherit font-lock-string-face))
+  "Face used for times in the agenda view."
+  :group 'caledonia)
+
+(defvar caledonia-agenda-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map special-mode-map)
+    (define-key map (kbd "RET") 'caledonia-agenda-show-event)
+    (define-key map (kbd "M-RET") 'caledonia-agenda-open-event-file)
+    (define-key map (kbd "l") 'caledonia-list)
+    (define-key map (kbd "r") 'caledonia-agenda-refresh)
+    (define-key map (kbd "a") 'caledonia-add-event)
+    (define-key map (kbd "d") 'caledonia-agenda-delete-event)
+    (define-key map (kbd "q") 'quit-window)
+    map)
+  "Keymap for Caledonia agenda mode.")
+
+(define-derived-mode caledonia-agenda-mode special-mode "Caledonia-Agenda"
+  "Major mode for displaying calendar events in an agenda view.")
+
+(defvar-local caledonia-agenda--query nil
+  "Current query used by this agenda buffer.")
+
+(defun caledonia--parse-iso-date (iso-string)
+  "Parse ISO-STRING and return (year month day hour minute)."
+  (let ((parsed (parse-time-string iso-string)))
+    (list (nth 5 parsed) (nth 4 parsed) (nth 3 parsed)
+          (or (nth 2 parsed) 0) (or (nth 1 parsed) 0))))
+
+(defun caledonia--format-day-header (year month day)
+  "Format a day header like \"Monday     10 March 2025\" from YEAR, MONTH, DAY."
+  (let* ((time (encode-time 0 0 12 day month year nil -1))
+         (dow (format-time-string "%A" time))
+         (month-name (format-time-string "%B" time)))
+    (format "%-10s %2d %s %d" dow day month-name year)))
+
+(defun caledonia--render-agenda (events)
+  "Render EVENTS in agenda format, grouped by date."
+  (let ((day-groups (make-hash-table :test 'equal))
+        (day-order nil))
+    ;; Group events by date
+    (dolist (event events)
+      (let* ((start (caledonia--get-key 'start event))
+             (parsed (caledonia--parse-iso-date start))
+             (date-key (list (nth 0 parsed) (nth 1 parsed) (nth 2 parsed))))
+        (unless (gethash date-key day-groups)
+          (push date-key day-order))
+        (puthash date-key
+                 (append (gethash date-key day-groups) (list event))
+                 day-groups)))
+    ;; Sort day-order chronologically
+    (setq day-order (sort day-order
+                          (lambda (a b)
+                            (or (< (nth 0 a) (nth 0 b))
+                                (and (= (nth 0 a) (nth 0 b))
+                                     (or (< (nth 1 a) (nth 1 b))
+                                         (and (= (nth 1 a) (nth 1 b))
+                                              (< (nth 2 a) (nth 2 b)))))))))
+    ;; Render each day
+    (dolist (date-key day-order)
+      (let ((year (nth 0 date-key))
+            (month (nth 1 date-key))
+            (day (nth 2 date-key))
+            (day-events (gethash date-key day-groups)))
+        ;; Insert date header
+        (insert (propertize (caledonia--format-day-header year month day)
+                            'face 'caledonia-agenda-date-face)
+                "\n")
+        ;; Insert events for this day
+        (dolist (event day-events)
+          (let* ((start (caledonia--get-key 'start event))
+                 (end-val (caledonia--get-key 'end event))
+                 (summary (or (caledonia--get-key 'summary event) "(no summary)"))
+                 (calendar (or (caledonia--get-key 'calendar event) ""))
+                 (location (caledonia--get-key 'location event))
+                 (is-date (caledonia--get-key 'is_date event))
+                 (start-parsed (caledonia--parse-iso-date start))
+                 (start-time-str (if is-date
+                                     "          "
+                                   (format "%02d:%02d" (nth 3 start-parsed) (nth 4 start-parsed))))
+                 (end-time-str (when (and end-val (not is-date))
+                                 (let ((end-parsed (caledonia--parse-iso-date end-val)))
+                                   (format "%02d:%02d" (nth 3 end-parsed) (nth 4 end-parsed)))))
+                 (time-str (if is-date
+                               "           "
+                             (if end-time-str
+                                 (format "%s-%s" start-time-str end-time-str)
+                               (format "%s     " start-time-str))))
+                 (location-str (if location (format " @ %s" location) ""))
+                 (line (format "  %-12s %s  %s%s\n"
+                               (propertize (concat calendar ":") 'face 'caledonia-calendar-name-face)
+                               (propertize time-str 'face 'caledonia-agenda-time-face)
+                               (propertize summary 'face 'caledonia-summary-face)
+                               (propertize location-str 'face 'caledonia-location-face))))
+            (insert (propertize line 'event-data event))))))))
+
+(defun caledonia-agenda-show-event ()
+  "Show details for the event on the current line."
+  (interactive)
+  (let ((event (get-text-property (point) 'event-data)))
+    (if event
+        (caledonia--display-event-details event)
+      (message "No event on this line"))))
+
+(defun caledonia-agenda-open-event-file ()
+  "Open the file for the event on the current line."
+  (interactive)
+  (let ((event (get-text-property (point) 'event-data)))
+    (if event
+        (let ((file (caledonia--get-key 'file event))
+              (event-id (caledonia--get-key 'id event)))
+          (cond
+           ((not file) (message "No file associated with this event"))
+           ((not (file-exists-p file)) (message "File does not exist: %s" file))
+           (t (find-file file)
+              (caledonia--find-and-highlight-event-in-file file event-id))))
+      (message "No event on this line"))))
+
+(defun caledonia-agenda-delete-event ()
+  "Delete the event on the current line."
+  (interactive)
+  (let ((event (get-text-property (point) 'event-data)))
+    (if event
+        (let ((id (caledonia--get-key 'id event))
+              (summary (or (caledonia--get-key 'summary event) "(no summary)")))
+          (when (y-or-n-p (format "Delete event '%s'? " summary))
+            (caledonia--send-request (format "(DeleteEvent %S)" id))
+            (message "Event deleted: %s" summary)
+            (caledonia-agenda-refresh)))
+      (message "No event on this line"))))
+
+(defun caledonia-agenda-refresh ()
+  "Refresh the agenda view."
+  (interactive)
+  (when (eq major-mode 'caledonia-agenda-mode)
+    (caledonia--send-request "Refresh")
+    (let* ((query caledonia-agenda--query)
+           (request-str (format "(Query %s)" (prin1-to-string query)))
+           (payload (caledonia--send-request request-str))
+           (events (caledonia--get-events payload)))
+      (let ((inhibit-read-only t)
+            (pos (point)))
+        (erase-buffer)
+        (caledonia--render-agenda events)
+        (goto-char (min pos (point-max)))))))
+
+(defun caledonia-agenda (&optional from-date to-date)
+  "Show an org-agenda style view of calendar events.
+FROM-DATE and TO-DATE override defaults. With prefix arg, prompts for dates."
+  (interactive
+   (when current-prefix-arg
+     (let ((dates (caledonia--read-date-range)))
+       (list (car dates) (cdr dates)))))
+  (let* ((from (or from-date caledonia-list-from-date))
+         (to (or (and to-date (not (string-empty-p to-date)) to-date)
+                 caledonia-list-to-date))
+         (query `((to ,to)))
+         (buffer (get-buffer-create caledonia--agenda-buffer)))
+    (when (and from (not (string-empty-p from)))
+      (setq query (append query `((from ,from)))))
+    (let* ((request-str (format "(Query %s)" (prin1-to-string query)))
+           (payload (caledonia--send-request request-str))
+           (events (caledonia--get-events payload)))
+      (with-current-buffer buffer
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (caledonia-agenda-mode)
+          (setq-local caledonia-agenda--query query)
+          (caledonia--render-agenda events))
+        (goto-char (point-min)))
+      (switch-to-buffer buffer))))
 
 (provide 'caledonia)
 ;;; caledonia.el ends here

@@ -45,7 +45,44 @@ let sexp_of_query_request q =
   in
   sexp
 
-type request = ListCalendars | Query of query_request | Refresh
+type create_event_request = {
+  calendar : string;
+  summary : string;
+  start_date : string;
+  start_time : string option; [@sexp.option]
+  end_date : string option; [@sexp.option]
+  end_time : string option; [@sexp.option]
+  location : string option; [@sexp.option]
+  description : string option; [@sexp.option]
+  timezone : string option; [@sexp.option]
+  end_timezone : string option; [@sexp.option]
+  alarms : string list; [@default []]
+}
+[@@deriving sexp]
+
+type edit_event_request = {
+  id : string;
+  summary : string option; [@sexp.option]
+  start_date : string option; [@sexp.option]
+  start_time : string option; [@sexp.option]
+  end_date : string option; [@sexp.option]
+  end_time : string option; [@sexp.option]
+  location : string option; [@sexp.option]
+  description : string option; [@sexp.option]
+  timezone : string option; [@sexp.option]
+  end_timezone : string option; [@sexp.option]
+  alarms : string list; [@default []]
+  no_alarms : bool; [@default false]
+}
+[@@deriving sexp]
+
+type request =
+  | ListCalendars
+  | Query of query_request
+  | Refresh
+  | CreateEvent of create_event_request
+  | EditEvent of edit_event_request
+  | DeleteEvent of string
 [@@deriving sexp]
 
 type response_payload =

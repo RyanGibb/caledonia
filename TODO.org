@@ -36,9 +36,9 @@
 ** DONE refresh
 ** DONE list possible calendars
 ** DONE add functions and bindings to change query parameters on the fly
-** TODO timezone support
-** TODO support adding, deleting, and editing events
-** TODO add a org-agenda style view for caledonia-list
+** DONE timezone support
+** DONE support adding, deleting, and editing events
+** DONE add a org-agenda style view for caledonia-list
 ** TODO check out https://github.com/janestreet/ecaml
 * TODO support more fields for sorting and searching
 * TODO command line autocomplete of ids

@@ -853,8 +853,14 @@ let sexp_of_t event =
       | Some s -> Some (List [ Atom "summary"; Atom s ])
       | None -> None);
       Some (List [ Atom "start"; Atom (format_ptime_iso start) ]);
+      (match get_start_timezone event with
+      | Some tz -> Some (List [ Atom "start_tz"; Atom tz ])
+      | None -> None);
       (match end_ with
       | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso e) ])
+      | None -> None);
+      (match get_end_timezone event with
+      | Some tz -> Some (List [ Atom "end_tz"; Atom tz ])
       | None -> None);
       (match get_location event with
       | Some l -> Some (List [ Atom "location"; Atom l ])
@@ -865,6 +871,11 @@ let sexp_of_t event =
       (match get_alarms event with
       | [] -> None
       | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms alarms) ]));
+      (if is_date event then Some (List [ Atom "is_date"; Atom "true" ])
+       else None);
+      (match get_recurrence event with
+      | Some _ -> Some (List [ Atom "recurring"; Atom "true" ])
+      | None -> None);
       Some (List [ Atom "file"; Atom (snd (get_file event)) ]);
       Some (List [ Atom "calendar"; Atom (get_calendar_name event) ]);
     ]

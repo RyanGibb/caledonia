@@ -42,8 +42,23 @@
       "l" 'caledonia-list
       "s" 'caledonia-search
       "r" 'caledonia-refresh
+      "a" 'caledonia-add-event
+      "e" 'caledonia-edit-event
+      "d" 'caledonia-delete-event
+      "A" 'caledonia-agenda
       "q" 'quit-window
       "f" caledonia-evil-filter-map))
+
+  (defun caledonia-evil--setup-agenda-evil-bindings ()
+    "Set up Evil keybindings for `caledonia-agenda-mode`."
+    (evil-define-key* 'normal caledonia-agenda-mode-map
+      (kbd "RET") 'caledonia-agenda-show-event
+      (kbd "M-RET") 'caledonia-agenda-open-event-file
+      "r" 'caledonia-agenda-refresh
+      "a" 'caledonia-add-event
+      "d" 'caledonia-agenda-delete-event
+      "l" 'caledonia-list
+      "q" 'quit-window))
 
   (defun caledonia-evil--setup-evil-integration ()
     "Set up Evil integration for Caledonia mode."
@@ -52,7 +67,15 @@
       (evil-normalize-keymaps)
       (caledonia-evil--setup-evil-bindings)))
 
-  (add-hook 'caledonia-mode-hook 'caledonia-evil--setup-evil-integration))
+  (defun caledonia-evil--setup-agenda-evil-integration ()
+    "Set up Evil integration for Caledonia agenda mode."
+    (when (bound-and-true-p evil-mode)
+      (evil-make-overriding-map caledonia-agenda-mode-map 'normal)
+      (evil-normalize-keymaps)
+      (caledonia-evil--setup-agenda-evil-bindings)))
+
+  (add-hook 'caledonia-mode-hook 'caledonia-evil--setup-evil-integration)
+  (add-hook 'caledonia-agenda-mode-hook 'caledonia-evil--setup-agenda-evil-integration))
 
 (provide 'caledonia-evil)
 ;;; caledonia-evil.el ends here
