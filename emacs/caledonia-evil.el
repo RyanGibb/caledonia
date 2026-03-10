@@ -36,7 +36,7 @@
 
   (defun caledonia-evil--setup-evil-bindings ()
     "Set up Evil keybindings for `caledonia-mode`."
-    (evil-define-key 'normal caledonia-mode-map
+    (evil-define-key* 'normal caledonia-mode-map
       (kbd "RET") 'caledonia-show-event
       (kbd "M-RET") 'caledonia-open-event-file
       "l" 'caledonia-list
