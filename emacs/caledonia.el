@@ -944,6 +944,12 @@ TO-DATE is required; a default will be used if not provided."
 (defvar-local caledonia-agenda--query nil
   "Current query used by this agenda buffer.")
 
+(defvar-local caledonia-agenda--from-date nil
+  "Start date as (year month day) for the agenda range.")
+
+(defvar-local caledonia-agenda--to-date nil
+  "End date as (year month day) for the agenda range.")
+
 (defun caledonia--parse-iso-date (iso-string)
   "Parse ISO-STRING and return (year month day hour minute)."
   (let ((parsed (parse-time-string iso-string)))
@@ -957,34 +963,46 @@ TO-DATE is required; a default will be used if not provided."
          (month-name (format-time-string "%B" time)))
     (format "%-10s %2d %s %d" dow day month-name year)))
 
-(defun caledonia--render-agenda (events)
-  "Render EVENTS in agenda format, grouped by date."
-  (let ((day-groups (make-hash-table :test 'equal))
-        (day-order nil))
+(defun caledonia--date-to-absolute (year month day)
+  "Convert YEAR MONTH DAY to an absolute day number for iteration."
+  (calendar-absolute-from-gregorian (list month day year)))
+
+(defun caledonia--absolute-to-date (abs)
+  "Convert absolute day number ABS to (year month day)."
+  (let ((greg (calendar-gregorian-from-absolute abs)))
+    (list (nth 2 greg) (nth 0 greg) (nth 1 greg))))
+
+(defun caledonia--render-agenda (events &optional from-date to-date)
+  "Render EVENTS in agenda format, grouped by date.
+Shows all days between FROM-DATE and TO-DATE, including empty days.
+FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events."
+  (let ((day-groups (make-hash-table :test 'equal)))
     ;; Group events by date
     (dolist (event events)
       (let* ((start (caledonia--get-key 'start event))
              (parsed (caledonia--parse-iso-date start))
              (date-key (list (nth 0 parsed) (nth 1 parsed) (nth 2 parsed))))
-        (unless (gethash date-key day-groups)
-          (push date-key day-order))
         (puthash date-key
                  (append (gethash date-key day-groups) (list event))
                  day-groups)))
-    ;; Sort day-order chronologically
-    (setq day-order (sort day-order
-                          (lambda (a b)
-                            (or (< (nth 0 a) (nth 0 b))
-                                (and (= (nth 0 a) (nth 0 b))
-                                     (or (< (nth 1 a) (nth 1 b))
-                                         (and (= (nth 1 a) (nth 1 b))
-                                              (< (nth 2 a) (nth 2 b)))))))))
-    ;; Render each day
-    (dolist (date-key day-order)
-      (let ((year (nth 0 date-key))
-            (month (nth 1 date-key))
-            (day (nth 2 date-key))
-            (day-events (gethash date-key day-groups)))
+    ;; Find date range
+    (when events
+      (let* ((first-event (car events))
+             (last-event (car (last events)))
+             (first-parsed (caledonia--parse-iso-date (caledonia--get-key 'start first-event)))
+             (last-parsed (caledonia--parse-iso-date (caledonia--get-key 'start last-event)))
+             (range-start (or from-date (list (nth 0 first-parsed) (nth 1 first-parsed) (nth 2 first-parsed))))
+             (range-end (or to-date (list (nth 0 last-parsed) (nth 1 last-parsed) (nth 2 last-parsed))))
+             (start-abs (caledonia--date-to-absolute (nth 0 range-start) (nth 1 range-start) (nth 2 range-start)))
+             (end-abs (caledonia--date-to-absolute (nth 0 range-end) (nth 1 range-end) (nth 2 range-end))))
+        ;; Iterate over every day in the range
+        (cl-loop for abs from start-abs to end-abs
+                 for date-key = (caledonia--absolute-to-date abs)
+                 for year = (nth 0 date-key)
+                 for month = (nth 1 date-key)
+                 for day = (nth 2 date-key)
+                 for day-events = (gethash date-key day-groups)
+                 do
         ;; Insert date header
         (insert (propertize (caledonia--format-day-header year month day)
                             'face 'caledonia-agenda-date-face)
@@ -1015,7 +1033,7 @@ TO-DATE is required; a default will be used if not provided."
                                (propertize time-str 'face 'caledonia-agenda-time-face)
                                (propertize summary 'face 'caledonia-summary-face)
                                (propertize location-str 'face 'caledonia-location-face))))
-            (insert (propertize line 'event-data event))))))))
+            (insert (propertize line 'event-data event)))))))))
 
 (defun caledonia-agenda-show-event ()
   "Show details for the event on the current line."
@@ -1060,12 +1078,22 @@ TO-DATE is required; a default will be used if not provided."
     (let* ((query caledonia-agenda--query)
            (request-str (format "(Query %s)" (prin1-to-string query)))
            (payload (caledonia--send-request request-str))
-           (events (caledonia--get-events payload)))
+           (events (caledonia--get-events payload))
+           (from-date caledonia-agenda--from-date)
+           (to-date caledonia-agenda--to-date))
       (let ((inhibit-read-only t)
             (pos (point)))
         (erase-buffer)
-        (caledonia--render-agenda events)
+        (caledonia--render-agenda events from-date to-date)
         (goto-char (min pos (point-max)))))))
+
+(defun caledonia--resolve-date-to-ymd (date-str)
+  "Resolve DATE-STR (like \"today\", \"+3m\", \"2025-04-01\") to (year month day).
+Uses current time for relative dates."
+  (when (and date-str (not (string-empty-p date-str)))
+    (let* ((time (org-read-date nil t date-str))
+           (decoded (decode-time time)))
+      (list (nth 5 decoded) (nth 4 decoded) (nth 3 decoded)))))
 
 (defun caledonia-agenda (&optional from-date to-date)
   "Show an org-agenda style view of calendar events.
@@ -1077,6 +1105,8 @@ FROM-DATE and TO-DATE override defaults. With prefix arg, prompts for dates."
   (let* ((from (or from-date caledonia-list-from-date))
          (to (or (and to-date (not (string-empty-p to-date)) to-date)
                  caledonia-list-to-date))
+         (from-ymd (caledonia--resolve-date-to-ymd from))
+         (to-ymd (caledonia--resolve-date-to-ymd to))
          (query `((to ,to)))
          (buffer (get-buffer-create caledonia--agenda-buffer)))
     (when (and from (not (string-empty-p from)))
@@ -1089,7 +1119,9 @@ FROM-DATE and TO-DATE override defaults. With prefix arg, prompts for dates."
           (erase-buffer)
           (caledonia-agenda-mode)
           (setq-local caledonia-agenda--query query)
-          (caledonia--render-agenda events))
+          (setq-local caledonia-agenda--from-date from-ymd)
+          (setq-local caledonia-agenda--to-date to-ymd)
+          (caledonia--render-agenda events from-ymd to-ymd))
         (goto-char (point-min)))
       (switch-to-buffer buffer))))
 
