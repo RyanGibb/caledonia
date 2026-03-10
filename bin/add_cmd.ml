@@ -9,7 +9,7 @@ let parse_categories cats =
   | Some s -> String.split_on_char ',' s |> List.map String.trim
 
 let run_event ~summary ~start_date ~start_time ~end_date ~end_time ~location
-    ~description ~recur ~categories ~calendar_name ?timezone ?end_timezone ~fs calendar_dir =
+    ~description ~recur ~categories ~alarms ~calendar_name ?timezone ?end_timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let* start = parse_start ~start_date ~start_time ~timezone in
   let* start =
@@ -44,10 +44,11 @@ let run_event ~summary ~start_date ~start_time ~end_date ~end_time ~location
   in
   let categories = parse_categories categories in
   let categories_opt = match categories with [] -> None | cats -> Some cats in
+  let* alarms = parse_alarms alarms in
   let* event =
     Event.create ~fs
       ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
-      ~summary ~start ?end_ ?location ?description ?categories:categories_opt ?recurrence calendar_name
+      ~summary ~start ?end_ ?location ?description ?categories:categories_opt ?recurrence ~alarms calendar_name
   in
   let* components = Calendar_dir.get_components ~fs calendar_dir in
   let* _ = Calendar_dir.add_component ~fs calendar_dir components (Component.of_event event) in
@@ -55,16 +56,17 @@ let run_event ~summary ~start_date ~start_time ~end_date ~end_time ~location
   Ok ()
 
 let run_todo ~summary ~start_date ~start_time ~due_date ~due_time ~description
-    ~categories ~priority ~percent ~status ~parent ~calendar_name ?timezone ~fs calendar_dir =
+    ~categories ~priority ~percent ~status ~parent ~alarms ~calendar_name ?timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let* start = parse_start ~start_date ~start_time ~timezone in
   let* due = parse_start ~start_date:due_date ~start_time:due_time ~timezone in
   let categories = parse_categories categories in
+  let* alarms = parse_alarms alarms in
   let* todo =
     Todo.create ~fs
       ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
       ?summary ?start ?due ?description
-      ~categories ?status ?priority ?percent ?parent calendar_name
+      ~categories ?status ?priority ?percent ?parent ~alarms calendar_name
   in
   let* components = Calendar_dir.get_components ~fs calendar_dir in
   let* _ = Calendar_dir.add_component ~fs calendar_dir components (Component.of_todo todo) in
@@ -88,7 +90,7 @@ let run_journal ~summary ~start_date ~start_time ~description ~categories ~statu
 
 let run ~component_type ~summary ~start_date ~start_time ~end_date ~end_time ~location
     ~description ~recur ~categories ~due_date ~due_time ~priority ~percent ~status ~parent
-    ~calendar_name ?timezone ?end_timezone ~fs calendar_dir =
+    ~alarms ~calendar_name ?timezone ?end_timezone ~fs calendar_dir =
   let calendar_name =
     match Calendar_dir.find_calendar_by_display_name ~fs calendar_dir calendar_name with
     | Some name -> name
@@ -97,10 +99,10 @@ let run ~component_type ~summary ~start_date ~start_time ~end_date ~end_time ~lo
   match component_type with
   | "event" ->
       run_event ~summary ~start_date ~start_time ~end_date ~end_time ~location
-        ~description ~recur ~categories ~calendar_name ?timezone ?end_timezone ~fs calendar_dir
+        ~description ~recur ~categories ~alarms ~calendar_name ?timezone ?end_timezone ~fs calendar_dir
   | "todo" ->
       run_todo ~summary:(Some summary) ~start_date ~start_time ~due_date ~due_time ~description
-        ~categories ~priority ~percent ~status ~parent ~calendar_name ?timezone ~fs calendar_dir
+        ~categories ~priority ~percent ~status ~parent ~alarms ~calendar_name ?timezone ~fs calendar_dir
   | "journal" ->
       run_journal ~summary:(Some summary) ~start_date ~start_time ~description ~categories ~status
         ~calendar_name ?timezone ~fs calendar_dir
@@ -108,11 +110,11 @@ let run ~component_type ~summary ~start_date ~start_time ~end_date ~end_time ~lo
 
 let cmd ~fs calendar_dir =
   let run component_type summary start_date start_time end_date end_time location description
-      recur categories due_date due_time priority percent status parent calendar_name timezone end_timezone () =
+      recur categories due_date due_time priority percent status parent alarms calendar_name timezone end_timezone () =
     match
       run ~component_type ~summary ~start_date ~start_time ~end_date ~end_time ~location
         ~description ~recur ~categories ~due_date ~due_time ~priority ~percent ~status ~parent
-        ~calendar_name ?timezone ?end_timezone ~fs calendar_dir
+        ~alarms ~calendar_name ?timezone ?end_timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -124,7 +126,7 @@ let cmd ~fs calendar_dir =
       const run $ component_type_arg $ required_summary_arg $ start_date_arg $ start_time_arg
       $ end_date_arg $ end_time_arg $ location_arg $ description_arg $ recur_arg
       $ categories_arg $ due_date_arg $ due_time_arg $ priority_arg $ percent_arg $ status_arg
-      $ parent_arg $ calendar_name_arg $ timezone_arg $ end_timezone_arg)
+      $ parent_arg $ alarm_arg $ calendar_name_arg $ timezone_arg $ end_timezone_arg)
   in
   let doc = "Add a new calendar component (event, todo, or journal)" in
   let man =
@@ -154,7 +156,7 @@ let cmd ~fs calendar_dir =
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries @ recurrence_format_manpage_entries
-    @ [ `S Manpage.s_see_also ]
+    @ alarm_format_manpage_entries @ [ `S Manpage.s_see_also ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]

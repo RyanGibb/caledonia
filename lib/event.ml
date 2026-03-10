@@ -19,7 +19,7 @@ let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 let ( let* ) = Result.bind
 
 let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
-    ?end_ ?location ?description ?categories ?recurrence calendar_name =
+    ?end_ ?location ?description ?categories ?recurrence ?(alarms = []) calendar_name =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
@@ -64,7 +64,7 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
       dtend_or_duration;
       rrule;
       props;
-      alarms = [];
+      alarms;
     }
   in
   let calendar =
@@ -74,7 +74,7 @@ let create ~(fs : Eio.Fs.dir_ty Eio.Path.t) ~calendar_dir_path ~summary ~start
   in
   Ok { calendar_name; file; event; calendar }
 
-let edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence t =
+let edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence ?alarms t =
   let now = Ptime_clock.now () in
   let uid = t.event.uid in
   let dtstart = match start with None -> t.event.dtstart | Some s -> s in
@@ -126,7 +126,7 @@ let edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence t 
     | Some cats when cats <> [] -> `Categories (Params.empty, cats) :: props
     | _ -> props
   in
-  let alarms = t.event.alarms in
+  let alarms = match alarms with Some a -> a | None -> t.event.alarms in
   let event =
     {
       dtstamp = (Params.empty, now);
@@ -244,6 +244,7 @@ let get_categories t =
   |> List.flatten
 
 let get_recurrence t = Option.map (fun r -> snd r) t.event.rrule
+let get_alarms t = t.event.alarms
 let get_calendar_name t = t.calendar_name
 let get_file t = t.file
 
@@ -487,9 +488,10 @@ let text_event_data ?tz event =
     | Some loc when loc <> "" -> "@" ^ loc
     | _ -> ""
   in
+  let alarm_str = Format_utils.format_alarms_short (get_alarms event) in
   let calendar_name = get_calendar_name event in
   let date_time = start_date ^ start_time ^ end_date ^ end_time in
-  (id, calendar_name, date_time, summary, location)
+  (id, calendar_name, date_time, summary, location, alarm_str)
 
 let format_prop_value = function
   | `Related (params, s) ->
@@ -526,11 +528,12 @@ let format_event ?(format = `Text) ?tz event =
   let end_ = get_end event in
   match format with
   | `Text ->
-      let id, calendar_name, date_time, summary, location =
+      let id, calendar_name, date_time, summary, location, alarm_str =
         text_event_data ?tz event
       in
-      Printf.sprintf "%s\t%s\t%s\t%s\t%s" calendar_name date_time summary
-        location id
+      let alarm_part = if alarm_str = "" then "" else "\t" ^ alarm_str in
+      Printf.sprintf "%s\t%s\t%s\t%s\t%s%s" calendar_name date_time summary
+        location id alarm_part
   | `Entries ->
       let format_opt label f opt =
         Option.map (fun x -> Printf.sprintf "%s: %s\n" label (f x)) opt
@@ -573,14 +576,20 @@ let format_event ?(format = `Text) ?tz event =
         |> Option.value ~default:""
       in
       let summary_str = format_opt "Summary" Fun.id (get_summary event) in
+      let alarms_str =
+        let alarms = get_alarms event in
+        match alarms with
+        | [] -> ""
+        | _ -> Printf.sprintf "Alarms: %s\n" (Format_utils.format_alarms alarms)
+      in
       let other_props_str =
         List.filter_map format_prop_value event.event.props
         |> List.map (fun (name, value) -> Printf.sprintf "%s: %s\n" name value)
         |> String.concat ""
       in
       let file_str = format_opt "File" Fun.id (Some (snd (get_file event))) in
-      Printf.sprintf "%s%s%s%s%s%s%s%s" summary_str start_str end_str location_str
-        description_str rrule_str other_props_str file_str
+      Printf.sprintf "%s%s%s%s%s%s%s%s%s" summary_str start_str end_str location_str
+        description_str rrule_str alarms_str other_props_str file_str
   | `Json ->
       let open Yojson.Safe in
       let json =
@@ -605,6 +614,12 @@ let format_event ?(format = `Text) ?tz event =
               | Some desc -> `String desc
               | None -> `Null );
             ("calendar", match get_calendar_name event with cal -> `String cal);
+            ("alarms", `List (List.filter_map (fun alarm ->
+              match Format_utils.alarm_trigger alarm with
+              | Some (_, `Duration span) -> Some (`String (Format_utils.format_alarm_trigger span))
+              | Some (_, `Datetime _) -> Some (`String "at fixed time")
+              | None -> None
+            ) (get_alarms event)));
           ]
       in
       to_string json
@@ -667,12 +682,18 @@ let format_event ?(format = `Text) ?tz event =
         match get_calendar_name event with
         | cal -> Printf.sprintf "\"%s\"" (String.escaped cal)
       in
+      let alarms_sexp =
+        let alarms = get_alarms event in
+        match alarms with
+        | [] -> "nil"
+        | _ -> Printf.sprintf "\"%s\"" (String.escaped (Format_utils.format_alarms alarms))
+      in
       let id = get_id event in
       Printf.sprintf
         "((:id \"%s\" :summary \"%s\" :start %s :end %s :location %s \
-         :description %s :calendar %s))"
+         :description %s :calendar %s :alarms %s))"
         (String.escaped id) (String.escaped summary) start_str end_str location
-        description calendar
+        description calendar alarms_sexp
 
 let format_events_with_dynamic_columns ?tz ?get_color events =
   if events = [] then ""
@@ -681,23 +702,23 @@ let format_events_with_dynamic_columns ?tz ?get_color events =
     (* Calculate max width for each column *)
     let max_id_width =
       List.fold_left
-        (fun acc (id, _, _, _, _) -> max acc (String.length id))
+        (fun acc (id, _, _, _, _, _) -> max acc (String.length id))
         0 event_data
     in
     let max_cal_width =
       List.fold_left
-        (fun acc (_, cal, _, _, _) -> max acc (String.length cal))
+        (fun acc (_, cal, _, _, _, _) -> max acc (String.length cal))
         0 event_data
     in
     let max_date_width =
       List.fold_left
-        (fun acc (_, _, date, _, _) -> max acc (String.length date))
+        (fun acc (_, _, date, _, _, _) -> max acc (String.length date))
         0 event_data
     in
     (* Calculate max width for summary+location *)
     let max_summary_loc_width =
       List.fold_left
-        (fun acc (_, _, _, summary, location) ->
+        (fun acc (_, _, _, summary, location, _) ->
           let full_length =
             String.length summary
             + if location <> "" then String.length location + 1 else 0
@@ -705,18 +726,32 @@ let format_events_with_dynamic_columns ?tz ?get_color events =
           max acc full_length)
         0 event_data
     in
+    let has_alarms = List.exists (fun (_, _, _, _, _, a) -> a <> "") event_data in
+    let max_alarm_width =
+      if has_alarms then
+        List.fold_left
+          (fun acc (_, _, _, _, _, alarm) -> max acc (String.length alarm))
+          0 event_data
+      else 0
+    in
     (* Format each event with calculated widths *)
     let formatted_events =
       List.map
-        (fun (id, cal, date, summary, location) ->
+        (fun (id, cal, date, summary, location, alarm_str) ->
           let color = match get_color with Some f -> f cal | None -> None in
           let summary_loc =
             summary ^ if location <> "" then " " ^ location else ""
           in
-          Printf.sprintf "%s  %s  %s  %s"
+          let alarm_col =
+            if has_alarms then
+              "  " ^ Format_utils.pad_to_width max_alarm_width alarm_str
+            else ""
+          in
+          Printf.sprintf "%s  %s  %s%s  %s"
             (Format_utils.pad_to_width ?color max_cal_width cal)
             (Format_utils.pad_to_width max_date_width date)
             (Format_utils.pad_to_width max_summary_loc_width summary_loc)
+            alarm_col
             (Format_utils.pad_to_width max_id_width id))
         event_data
     in
@@ -827,6 +862,9 @@ let sexp_of_t event =
       (match get_description event with
       | Some d -> Some (List [ Atom "description"; Atom d ])
       | None -> None);
+      (match get_alarms event with
+      | [] -> None
+      | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms alarms) ]));
       Some (List [ Atom "file"; Atom (snd (get_file event)) ]);
       Some (List [ Atom "calendar"; Atom (get_calendar_name event) ]);
     ]
@@ -894,3 +932,44 @@ let query events ?filter ~from ~to_ ?comparator ?limit () =
     match comparator with None -> events | Some c -> List.sort c events
   in
   match limit with Some n when n > 0 -> take n events | _ -> events
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  event : t;
+  alarm : Icalendar.alarm;
+}
+
+let compute_alarm_fire_time event alarm =
+  match Format_utils.alarm_trigger alarm with
+  | Some (_, `Duration span) ->
+      Ptime.add_span (get_start event) span
+  | Some (_, `Datetime dt) ->
+      Some dt
+  | None -> None
+
+let compute_alarm_fires ~from ~to_ event =
+  let expanded =
+    match get_recurrence event with
+    | None -> [ event ]
+    | Some _ ->
+        let buffer_to = match Ptime.add_span to_ (Ptime.Span.of_int_s (7 * 86400)) with
+          | Some t -> t
+          | None -> to_
+        in
+        expand_recurrences ~from:None ~to_:buffer_to event
+  in
+  List.concat_map (fun ev ->
+    List.filter_map (fun alarm ->
+      match compute_alarm_fire_time ev alarm with
+      | Some fire_time ->
+          let after_from = match from with
+            | None -> true
+            | Some f -> Ptime.compare fire_time f >= 0
+          in
+          let before_to = Ptime.compare fire_time to_ < 0 in
+          if after_from && before_to then
+            Some { fire_time; event = ev; alarm }
+          else None
+      | None -> None
+    ) (get_alarms ev)
+  ) expanded

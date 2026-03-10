@@ -21,6 +21,9 @@
 * TODO support querying text with regex
 * TODO support VTIMEZONE
 * TODO support VALARMS
+** DONE basic alarm support (display, add, edit, show, list)
+** DONE list alarms firing on a given day (compute event start - trigger for each alarm)
+** DONE alarm notification daemon (dbus notification with persistent notifications)
 * DONE support VOTODS
 * TODO support VCARDS
 * DONE support VJOURNAL

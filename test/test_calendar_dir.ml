@@ -11,7 +11,7 @@ let%expect_test "list calendar names" =
   Printf.printf "Contains 'example': %b\n" (List.exists (fun c -> c = "example") calendar_names);
   Printf.printf "Contains 'recurrence': %b\n" (List.exists (fun c -> c = "recurrence") calendar_names);
   [%expect {|
-    Number of calendars: 2
+    Number of calendars: 3
     Contains 'example': true
     Contains 'recurrence': true |}]
 
@@ -29,4 +29,4 @@ let%expect_test "get all events" =
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   Printf.printf "Total events: %d\n" (List.length events);
-  [%expect {| Total events: 32 |}]
+  [%expect {| Total events: 34 |}]

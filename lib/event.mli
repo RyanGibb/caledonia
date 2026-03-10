@@ -22,6 +22,7 @@ val create :
   ?description:string ->
   ?categories:string list ->
   ?recurrence:Icalendar.recurrence ->
+  ?alarms:Icalendar.alarm list ->
   string ->
   (t, [> `Msg of string ]) result
 (** Create a new event with required properties.
@@ -42,6 +43,7 @@ val edit :
   ?description:string ->
   ?categories:string list ->
   ?recurrence:Icalendar.recurrence ->
+  ?alarms:Icalendar.alarm list ->
   t ->
   (t, [> `Msg of string ]) result
 (** Edit an existing event. *)
@@ -75,6 +77,7 @@ val get_location : t -> string option
 val get_description : t -> string option
 val get_categories : t -> string list
 val get_recurrence : t -> Icalendar.recurrence option
+val get_alarms : t -> Icalendar.alarm list
 val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
 val expand_recurrences : from:Ptime.t option -> to_:Ptime.t -> t -> t list
@@ -161,6 +164,17 @@ val query :
   t list
 (** Find events with expansion of recurring events. Returns Ok with the list of
     events, or Error with a message. *)
+
+(** {2 Alarm fire times} *)
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  event : t;
+  alarm : Icalendar.alarm;
+}
+
+val compute_alarm_fires : from:Ptime.t option -> to_:Ptime.t -> t -> alarm_fire list
+(** Compute alarm fire times for an event (expanding recurrences) within a date range. *)
 
 (* Test-only helper functions *)
 val matches_filter : t -> filter -> bool

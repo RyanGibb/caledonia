@@ -16,6 +16,7 @@ val create :
   ?priority:int ->
   ?percent:int ->
   ?parent:string ->
+  ?alarms:Icalendar.alarm list ->
   string ->
   (t, [> `Msg of string ]) result
 
@@ -29,6 +30,7 @@ val edit :
   ?priority:int ->
   ?percent:int ->
   ?parent:string option ->
+  ?alarms:Icalendar.alarm list ->
   t ->
   (t, [> `Msg of string ]) result
 
@@ -51,6 +53,7 @@ val get_status : t -> Icalendar.status option
 val get_priority : t -> int option
 val get_percent : t -> int option
 val get_completed : t -> Ptime.t option
+val get_alarms : t -> Icalendar.alarm list
 val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
 val get_related_parent : t -> string option
@@ -71,3 +74,11 @@ type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
 val format_todo : ?format:format -> ?tz:Timedesc.Time_zone.t -> t -> string
 val format_todos : ?format:format -> ?tz:Timedesc.Time_zone.t -> ?get_color:(string -> string option) -> t list -> string
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  todo : t;
+  alarm : Icalendar.alarm;
+}
+
+val compute_alarm_fires : from:Ptime.t option -> to_:Ptime.t -> t -> alarm_fire list

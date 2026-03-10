@@ -73,3 +73,10 @@ let no_parent_flag =
     value
     & flag
     & info [ "no-parent" ] ~doc)
+
+let no_alarms_flag =
+  let doc = "Remove all alarms" in
+  Arg.(
+    value
+    & flag
+    & info [ "no-alarms" ] ~doc)

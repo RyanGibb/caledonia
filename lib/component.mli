@@ -19,6 +19,7 @@ val get_description : t -> string option
 val get_categories : t -> string list
 val get_calendar_name : t -> string
 val get_file : t -> Eio.Fs.dir_ty Eio.Path.t
+val get_alarms : t -> Icalendar.alarm list
 val get_start : t -> Ptime.t option
 
 val to_ical_component : t -> Icalendar.component
@@ -57,3 +58,14 @@ val format_components :
   ?format:format -> ?tz:(unit -> Timedesc.Time_zone.t) -> ?get_color:(string -> string option) -> t list -> string
 
 val sexp_of_t : t -> Sexplib0.Sexp.t
+
+(** Alarm fire times *)
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  component : t;
+  alarm : Icalendar.alarm;
+}
+
+val query_alarm_fires : from:Ptime.t option -> to_:Ptime.t -> t list -> alarm_fire list
+(** Query all alarm fire times within a date range, sorted by fire time. *)

@@ -7,6 +7,8 @@ let add_cmd = Add_cmd.cmd
 let delete_cmd = Delete_cmd.cmd
 let edit_cmd = Edit_cmd.cmd
 let server_cmd = Server_cmd.cmd
+let alarms_cmd = Alarms_cmd.cmd
+let alarm_daemon_cmd = Alarm_daemon_cmd.cmd
 let doc = "Command-line calendar tool for managing local .ics files with support for events, todos, and journals"
 let version = "%%VERSION%%"
 
@@ -48,6 +50,9 @@ let main env =
                delete_cmd ~fs calendar_dir;
                server_cmd ~stdin:(Eio.Stdenv.stdin env)
                  ~stdout:(Eio.Stdenv.stdout env) ~fs calendar_dir;
+               alarms_cmd ~fs calendar_dir;
+               alarm_daemon_cmd ~clock:(Eio.Stdenv.clock env) ~fs
+                 calendar_dir;
              ])
       with
       | Ok (`Ok f) -> f ()

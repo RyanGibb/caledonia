@@ -4,6 +4,7 @@ type t = {
   calendar_name : string;
   file : Eio.Fs.dir_ty Eio.Path.t;
   props : todo_prop list;
+  alarms : alarm list;
   calendar : calendar;
 }
 
@@ -27,7 +28,7 @@ let generate_uuid () =
 let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 
 let create ~fs ~calendar_dir_path ?summary ?start ?due ?description ?categories
-    ?status ?priority ?percent ?parent calendar_name =
+    ?status ?priority ?percent ?parent ?(alarms = []) calendar_name =
   let uuid = generate_uuid () in
   let uid = (Params.empty, uuid) in
   let file_name = uuid ^ ".ics" in
@@ -75,10 +76,10 @@ let create ~fs ~calendar_dir_path ?summary ?start ?due ?description ?categories
         `Related (params, parent_uid) :: props
     | None -> props
   in
-  let calendar = ([ default_prodid ], [ `Todo (props, []) ]) in
-  Ok { calendar_name; file; props; calendar }
+  let calendar = ([ default_prodid ], [ `Todo (props, alarms) ]) in
+  Ok { calendar_name; file; props; alarms; calendar }
 
-let edit ?summary ?start ?due ?description ?categories ?status ?priority ?percent ?parent t =
+let edit ?summary ?start ?due ?description ?categories ?status ?priority ?percent ?parent ?alarms t =
   let now = Ptime_clock.now () in
   let props =
     List.filter_map
@@ -157,8 +158,9 @@ let edit ?summary ?start ?due ?description ?categories ?status ?priority ?percen
         `Related (params, parent_uid) :: props
     | _ -> props
   in
-  let calendar = (fst t.calendar, [ `Todo (props, []) ]) in
-  Ok { t with props; calendar }
+  let alarms = match alarms with Some a -> a | None -> t.alarms in
+  let calendar = (fst t.calendar, [ `Todo (props, alarms) ]) in
+  Ok { t with props; alarms; calendar }
 
 let mark_complete t =
   let now = Ptime_clock.now () in
@@ -173,7 +175,7 @@ let mark_complete t =
     :: `Percent (Params.empty, 100)
     :: props
   in
-  let calendar = (fst t.calendar, [ `Todo (props, []) ]) in
+  let calendar = (fst t.calendar, [ `Todo (props, t.alarms) ]) in
   Ok { t with props; calendar }
 
 let set_percent percent t =
@@ -192,17 +194,17 @@ let set_percent percent t =
         :: props
       else props
     in
-    let calendar = (fst t.calendar, [ `Todo (props, []) ]) in
+    let calendar = (fst t.calendar, [ `Todo (props, t.alarms) ]) in
     Ok { t with props; calendar }
 
 let todos_of_icalendar calendar_name ~file calendar =
   let todos =
     List.filter_map
-      (function `Todo (props, _) -> Some props | _ -> None)
+      (function `Todo (props, alarms) -> Some (props, alarms) | _ -> None)
       (snd calendar)
   in
   List.map
-    (fun props -> { calendar_name; file; props; calendar = (fst calendar, [ `Todo (props, []) ]) })
+    (fun (props, alarms) -> { calendar_name; file; props; alarms; calendar = (fst calendar, [ `Todo (props, alarms) ]) })
     todos
 
 let to_ical_todo t = t.props
@@ -269,6 +271,7 @@ let get_completed t =
     (function `Completed (_, t) -> Some t | _ -> None)
     t.props
 
+let get_alarms t = t.alarms
 let get_calendar_name t = t.calendar_name
 let get_file t = t.file
 
@@ -375,7 +378,8 @@ let text_todo_data ?tz todo =
   in
   let categories = get_categories todo in
   let cats_str = if categories = [] then "" else String.concat "," categories in
-  (calendar_name, start_str, due_str, status_str, summary, percent_str, cats_str, id)
+  let alarm_str = Format_utils.format_alarms_short (get_alarms todo) in
+  (calendar_name, start_str, due_str, status_str, summary, percent_str, cats_str, alarm_str, id)
 
 let format_prop_value = function
   | `Related (params, s) ->
@@ -410,11 +414,12 @@ let format_prop_value = function
 let format_todo ?(format = `Text) ?tz todo =
   match format with
   | `Text ->
-      let calendar_name, start, due, status, summary, percent, cats, id =
+      let calendar_name, start, due, status, summary, percent, cats, alarm_str, id =
         text_todo_data ?tz todo
       in
-      Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s"
-        calendar_name start due status summary percent cats id
+      let alarm_part = if alarm_str = "" then "" else "\t" ^ alarm_str in
+      Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s%s"
+        calendar_name start due status summary percent cats id alarm_part
   | `Entries ->
       let summary_str = Format_utils.format_opt "Summary" Fun.id (get_summary todo) in
       let due_str = Format_utils.format_opt "Due" (Format_utils.format_date ?tz) (get_due todo) in
@@ -430,14 +435,20 @@ let format_todo ?(format = `Text) ?tz todo =
       let cats = get_categories todo in
       let cats_str = if cats = [] then "" else Printf.sprintf "Categories: %s\n" (String.concat ", " cats) in
       let description_str = Format_utils.format_opt "Description" Fun.id (get_description todo) in
+      let alarms_str =
+        let alarms = get_alarms todo in
+        match alarms with
+        | [] -> ""
+        | _ -> Printf.sprintf "Alarms: %s\n" (Format_utils.format_alarms alarms)
+      in
       let other_props_str =
         List.filter_map format_prop_value todo.props
         |> List.map (fun (name, value) -> Printf.sprintf "%s: %s\n" name value)
         |> String.concat ""
       in
       let file_str = Format_utils.format_opt "File" Fun.id (Some (snd (get_file todo))) in
-      Printf.sprintf "%s%s%s%s%s%s%s%s%s%s" summary_str start_str due_str priority_str
-        percent_str status_str cats_str description_str other_props_str file_str
+      Printf.sprintf "%s%s%s%s%s%s%s%s%s%s%s" summary_str start_str due_str priority_str
+        percent_str status_str cats_str description_str alarms_str other_props_str file_str
   | `Json ->
       let open Yojson.Safe in
       let json =
@@ -458,6 +469,12 @@ let format_todo ?(format = `Text) ?tz todo =
             ("categories", `List (List.map (fun c -> `String c) (get_categories todo)));
             ("description", match get_description todo with Some d -> `String d | None -> `Null);
             ("calendar", `String (get_calendar_name todo));
+            ("alarms", `List (List.filter_map (fun alarm ->
+              match Format_utils.alarm_trigger alarm with
+              | Some (_, `Duration span) -> Some (`String (Format_utils.format_alarm_trigger span))
+              | Some (_, `Datetime _) -> Some (`String "at fixed time")
+              | None -> None
+            ) (get_alarms todo)));
           ]
       in
       to_string json
@@ -486,11 +503,17 @@ let format_todo ?(format = `Text) ?tz todo =
         | Some `Cancelled -> "\"cancelled\""
         | _ -> "nil"
       in
+      let alarms_sexp =
+        let alarms = get_alarms todo in
+        match alarms with
+        | [] -> "nil"
+        | _ -> Printf.sprintf "\"%s\"" (String.escaped (Format_utils.format_alarms alarms))
+      in
       let calendar = Printf.sprintf "\"%s\"" (String.escaped (get_calendar_name todo)) in
       let id = get_id todo in
       Printf.sprintf
-        "((:id \"%s\" :summary \"%s\" :due %s :priority %s :percent %s :status %s :calendar %s))"
-        (String.escaped id) (String.escaped summary) due_str priority percent status_str calendar
+        "((:id \"%s\" :summary \"%s\" :due %s :priority %s :percent %s :status %s :calendar %s :alarms %s))"
+        (String.escaped id) (String.escaped summary) due_str priority percent status_str calendar alarms_sexp
 
 let format_todos_with_dynamic_columns ?tz ?get_color todos =
   if todos = [] then ""
@@ -501,26 +524,37 @@ let format_todos_with_dynamic_columns ?tz ?get_color todos =
     in
     let all_todos_with_depth = List.concat_map (collect_all_todos_with_depth 0) trees in
     let todo_data = List.map (fun (todo, depth) ->
-      let cal, start, due, status, summary, percent, cats, id = text_todo_data ?tz todo in
+      let cal, start, due, status, summary, percent, cats, alarm_str, id = text_todo_data ?tz todo in
       let indent = String.make (depth * 2) ' ' in
       let status_with_indent = indent ^ status in
-      (cal, start, due, status_with_indent, summary, percent, cats, id)
+      (cal, start, due, status_with_indent, summary, percent, cats, alarm_str, id)
     ) all_todos_with_depth in
-    let max_cal_width = Format_utils.max_width (fun (cal, _, _, _, _, _, _, _) -> cal) todo_data in
-    let max_start_width = Format_utils.max_width (fun (_, start, _, _, _, _, _, _) -> start) todo_data in
-    let max_due_width = Format_utils.max_width (fun (_, _, due, _, _, _, _, _) -> due) todo_data in
-    let max_status_width = Format_utils.max_width (fun (_, _, _, status, _, _, _, _) -> status) todo_data in
-    let max_summary_width = Format_utils.max_width (fun (_, _, _, _, summary, _, _, _) -> summary) todo_data in
-    let max_percent_width = Format_utils.max_width (fun (_, _, _, _, _, pct, _, _) -> pct) todo_data in
-    let max_cats_width = Format_utils.max_width (fun (_, _, _, _, _, _, cats, _) -> cats) todo_data in
-    let max_id_width = Format_utils.max_width (fun (_, _, _, _, _, _, _, id) -> id) todo_data in
+    let max_cal_width = Format_utils.max_width (fun (cal, _, _, _, _, _, _, _, _) -> cal) todo_data in
+    let max_start_width = Format_utils.max_width (fun (_, start, _, _, _, _, _, _, _) -> start) todo_data in
+    let max_due_width = Format_utils.max_width (fun (_, _, due, _, _, _, _, _, _) -> due) todo_data in
+    let max_status_width = Format_utils.max_width (fun (_, _, _, status, _, _, _, _, _) -> status) todo_data in
+    let max_summary_width = Format_utils.max_width (fun (_, _, _, _, summary, _, _, _, _) -> summary) todo_data in
+    let max_percent_width = Format_utils.max_width (fun (_, _, _, _, _, pct, _, _, _) -> pct) todo_data in
+    let max_cats_width = Format_utils.max_width (fun (_, _, _, _, _, _, cats, _, _) -> cats) todo_data in
+    let has_alarms = List.exists (fun (_, _, _, _, _, _, _, a, _) -> a <> "") todo_data in
+    let max_alarm_width =
+      if has_alarms then
+        Format_utils.max_width (fun (_, _, _, _, _, _, _, alarm, _) -> alarm) todo_data
+      else 0
+    in
+    let max_id_width = Format_utils.max_width (fun (_, _, _, _, _, _, _, _, id) -> id) todo_data in
     let rec format_tree depth tree =
       let indent = String.make (depth * 2) ' ' in
-      let cal, start, due, status, summary, percent, cats, id = text_todo_data ?tz tree.todo in
+      let cal, start, due, status, summary, percent, cats, alarm_str, id = text_todo_data ?tz tree.todo in
       let color = match get_color with Some f -> f cal | None -> None in
       let status_with_indent = indent ^ status in
+      let alarm_col =
+        if has_alarms then
+          "  " ^ Format_utils.pad_to_width max_alarm_width alarm_str
+        else ""
+      in
       let line =
-        Printf.sprintf "%s  %s  %s  %s  %s  %s  %s  %s"
+        Printf.sprintf "%s  %s  %s  %s  %s  %s  %s%s  %s"
           (Format_utils.pad_to_width ?color max_cal_width cal)
           (Format_utils.pad_to_width max_start_width start)
           (Format_utils.pad_to_width max_due_width due)
@@ -528,6 +562,7 @@ let format_todos_with_dynamic_columns ?tz ?get_color todos =
           (Format_utils.pad_to_width max_summary_width summary)
           (Format_utils.pad_to_width max_percent_width percent)
           (Format_utils.pad_to_width max_cats_width cats)
+          alarm_col
           (Format_utils.pad_to_width max_id_width id)
       in
       let children_lines = List.concat_map (format_tree (depth + 1)) tree.children in
@@ -552,3 +587,39 @@ let format_todos ?(format = `Text) ?tz ?get_color todos =
           (List.map (fun t -> format_todo ~format:`Sexp ?tz t) todos)
       ^ ")"
   | _ -> String.concat "\n" (List.map (fun t -> format_todo ~format ?tz t) todos)
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  todo : t;
+  alarm : Icalendar.alarm;
+}
+
+let compute_alarm_fire_time todo alarm =
+  let ref_time = match get_start todo with
+    | Some t -> Some t
+    | None -> get_due todo
+  in
+  match ref_time with
+  | None -> None
+  | Some start ->
+      match Format_utils.alarm_trigger alarm with
+      | Some (_, `Duration span) ->
+          Ptime.add_span start span
+      | Some (_, `Datetime dt) ->
+          Some dt
+      | None -> None
+
+let compute_alarm_fires ~from ~to_ todo =
+  List.filter_map (fun alarm ->
+    match compute_alarm_fire_time todo alarm with
+    | Some fire_time ->
+        let after_from = match from with
+          | None -> true
+          | Some f -> Ptime.compare fire_time f >= 0
+        in
+        let before_to = Ptime.compare fire_time to_ < 0 in
+        if after_from && before_to then
+          Some { fire_time; todo; alarm }
+        else None
+    | None -> None
+  ) (get_alarms todo)

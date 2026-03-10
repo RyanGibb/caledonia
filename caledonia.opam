@@ -30,4 +30,5 @@ depends: [
   "alcotest" {>= "1.8.0" & with-test}
   "uucp" {>= "16.0.0"}
   "uutf" {>= "1.0.4"}
+  "inotify" {>= "2.0"}
 ]

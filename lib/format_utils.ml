@@ -61,3 +61,74 @@ let pad_to_width ?(color:string option) target_width s =
 
 let max_width f data =
   List.fold_left (fun acc x -> max acc (display_width (f x))) 0 data
+
+let format_alarm_trigger span =
+  let seconds = Ptime.Span.to_float_s span in
+  let abs_seconds = Float.abs seconds in
+  let suffix = if seconds < 0.0 then " before" else if seconds > 0.0 then " after" else "" in
+  let days = int_of_float (abs_seconds /. 86400.0) in
+  let remaining = abs_seconds -. (float_of_int days *. 86400.0) in
+  let hours = int_of_float (remaining /. 3600.0) in
+  let remaining = remaining -. (float_of_int hours *. 3600.0) in
+  let minutes = int_of_float (remaining /. 60.0) in
+  let parts = [] in
+  let parts = if days > 0 then
+    (Printf.sprintf "%d day%s" days (if days > 1 then "s" else "")) :: parts
+  else parts in
+  let parts = if hours > 0 then
+    (Printf.sprintf "%d hour%s" hours (if hours > 1 then "s" else "")) :: parts
+  else parts in
+  let parts = if minutes > 0 then
+    (Printf.sprintf "%d minute%s" minutes (if minutes > 1 then "s" else "")) :: parts
+  else parts in
+  let parts = List.rev parts in
+  match parts with
+  | [] -> "at start"
+  | _ -> String.concat " " parts ^ suffix
+
+let format_alarm_short span =
+  let seconds = Ptime.Span.to_float_s span in
+  let abs_seconds = Float.abs seconds in
+  let days = int_of_float (abs_seconds /. 86400.0) in
+  let remaining = abs_seconds -. (float_of_int days *. 86400.0) in
+  let hours = int_of_float (remaining /. 3600.0) in
+  let remaining = remaining -. (float_of_int hours *. 3600.0) in
+  let minutes = int_of_float (remaining /. 60.0) in
+  if days > 0 && hours = 0 && minutes = 0 then Printf.sprintf "%dd" days
+  else if days = 0 && hours > 0 && minutes = 0 then Printf.sprintf "%dh" hours
+  else if days = 0 && hours = 0 && minutes > 0 then Printf.sprintf "%dm" minutes
+  else if days = 0 && hours = 0 && minutes = 0 then "0m"
+  else
+    let parts = [] in
+    let parts = if minutes > 0 then Printf.sprintf "%dm" minutes :: parts else parts in
+    let parts = if hours > 0 then Printf.sprintf "%dh" hours :: parts else parts in
+    let parts = if days > 0 then Printf.sprintf "%dd" days :: parts else parts in
+    String.concat "" parts
+
+let alarm_trigger = function
+  | `Audio a -> Some a.Icalendar.trigger
+  | `Display a -> Some a.Icalendar.trigger
+  | `Email a -> Some a.Icalendar.trigger
+  | `None _ -> None
+
+let format_alarms alarms =
+  let trigger_strs = List.filter_map (fun alarm ->
+    match alarm_trigger alarm with
+    | Some (_, `Duration span) -> Some (format_alarm_trigger span)
+    | Some (_, `Datetime _) -> Some "at fixed time"
+    | None -> None
+  ) alarms in
+  match trigger_strs with
+  | [] -> ""
+  | strs -> String.concat ", " strs
+
+let format_alarms_short alarms =
+  let trigger_strs = List.filter_map (fun alarm ->
+    match alarm_trigger alarm with
+    | Some (_, `Duration span) -> Some (format_alarm_short span)
+    | Some (_, `Datetime _) -> Some "abs"
+    | None -> None
+  ) alarms in
+  match trigger_strs with
+  | [] -> ""
+  | strs -> String.concat "," strs

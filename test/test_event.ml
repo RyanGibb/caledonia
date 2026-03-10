@@ -21,7 +21,7 @@ let%expect_test "query all events" =
   let test_event = List.find_opt (fun event -> Option.get @@ Event.get_summary event = "Test Event") events in
   Printf.printf "Found Test Event: %b\n" (test_event <> None);
   [%expect {|
-    Number of events: 791
+    Number of events: 832
     Found Test Event: true |}]
 
 let%expect_test "recurrence expansion" =
@@ -66,10 +66,10 @@ let%expect_test "text search" =
   Printf.printf "Events matching OR criteria: %d\n" (List.length filtered);
   
   [%expect {|
-    Events with 'Test' in summary: 2
+    Events with 'Test' in summary: 3
     Events with 'Weekly' in location: 10
-    Events matching AND criteria: 2
-    Events matching OR criteria: 12 |}]
+    Events matching AND criteria: 3
+    Events matching OR criteria: 13 |}]
 
 let%expect_test "calendar filter" =
   Eio_main.run @@ fun env ->

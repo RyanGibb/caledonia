@@ -78,6 +78,10 @@ let recur_arg =
   Arg.(
     value & opt (some string) None & info [ "recur"; "r" ] ~docv:"RECUR" ~doc)
 
+let alarm_arg =
+  let doc = "Add an alarm trigger before the event start (e.g., '15m', '1h', '1d', '2h30m'). Can be specified multiple times." in
+  Arg.(value & opt_all string [] & info [ "alarm"; "a" ] ~docv:"ALARM" ~doc)
+
 let date_format_manpage_entries =
   [
     `S "DATE FORMATS";
@@ -397,6 +401,72 @@ let parse_recurrence recur =
       let recurrence = (f, limit, !interval, !by_parts) in
       Ok recurrence
   | None -> Error (`Msg "FREQ is required in recurrence rule")
+
+let parse_alarm s =
+  let s = String.lowercase_ascii (String.trim s) in
+  let len = String.length s in
+  if len = 0 then Error (`Msg "Empty alarm specification")
+  else
+    let rec parse_parts i total_seconds =
+      if i >= len then Ok total_seconds
+      else
+        (* read digits *)
+        let j = ref i in
+        while !j < len && s.[!j] >= '0' && s.[!j] <= '9' do incr j done;
+        if !j = i then Error (`Msg ("Invalid alarm format: " ^ s))
+        else
+          let num = int_of_string (String.sub s i (!j - i)) in
+          if !j >= len then Error (`Msg ("Missing unit suffix in alarm: " ^ s))
+          else
+            let unit_start = !j in
+            while !j < len && not (s.[!j] >= '0' && s.[!j] <= '9') do incr j done;
+            let unit_str = String.sub s unit_start (!j - unit_start) in
+            let multiplier = match unit_str with
+              | "s" | "sec" | "second" | "seconds" -> Ok 1
+              | "m" | "min" | "minute" | "minutes" -> Ok 60
+              | "h" | "hr" | "hour" | "hours" -> Ok 3600
+              | "d" | "day" | "days" -> Ok 86400
+              | "w" | "week" | "weeks" -> Ok 604800
+              | _ -> Error (`Msg ("Unknown alarm time unit: " ^ unit_str))
+            in
+            match multiplier with
+            | Error e -> Error e
+            | Ok m -> parse_parts !j (total_seconds + num * m)
+    in
+    let ( let* ) = Result.bind in
+    let* seconds = parse_parts 0 0 in
+    Ok (Ptime.Span.of_int_s (- seconds))
+
+let make_display_alarm span =
+  let open Icalendar in
+  `Display {
+    trigger = (Params.empty, `Duration span);
+    duration_repeat = None;
+    summary = None;
+    other = [];
+    special = { description = None };
+  }
+
+let parse_alarms alarm_strings =
+  let ( let* ) = Result.bind in
+  let rec aux acc = function
+    | [] -> Ok (List.rev acc)
+    | s :: rest ->
+        let* span = parse_alarm s in
+        aux (make_display_alarm span :: acc) rest
+  in
+  aux [] alarm_strings
+
+let alarm_format_manpage_entries =
+  [
+    `S "ALARM";
+    `P "Alarm trigger duration before the event/todo start. Can be specified multiple times for multiple alarms.";
+    `I ("15m", "15 minutes before");
+    `I ("1h", "1 hour before");
+    `I ("1d", "1 day before");
+    `I ("2h30m", "2 hours and 30 minutes before");
+    `I ("1w", "1 week before");
+  ]
 
 let recurrence_format_manpage_entries =
   [

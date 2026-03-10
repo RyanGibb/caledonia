@@ -14,9 +14,11 @@
   ptime.clock.os
   eio
   eio_main
+  eio.unix
   timere
   sexplib
-  sexplib.unix)
+  sexplib.unix
+  inotify)
  (modules
   main
   query_args
@@ -28,4 +30,6 @@
   add_cmd
   delete_cmd
   edit_cmd
-  server_cmd))
+  server_cmd
+  alarms_cmd
+  alarm_daemon_cmd))

@@ -16,7 +16,7 @@ let parse_status s =
 
 let run ~component_id ~summary ~start_date ~start_time ~end_date ~end_time ~location
     ~description ~recur ~categories ~due_date ~due_time ~priority ~percent ~status ~parent ~no_parent
-    ?timezone ?end_timezone ~fs calendar_dir =
+    ~alarms ~no_alarms ?timezone ?end_timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
   let* components = Calendar_dir.get_components ~fs calendar_dir in
   let* component =
@@ -56,7 +56,13 @@ let run ~component_id ~summary ~start_date ~start_time ~end_date ~end_time ~loca
         | Some s -> Some (String.split_on_char ',' s |> List.map String.trim)
         | None -> None
       in
-      let* modified = Event.edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence e in
+      let* alarms_param =
+        if no_alarms then Ok (Some [])
+        else match alarms with
+          | [] -> Ok None
+          | strs -> let* a = parse_alarms strs in Ok (Some a)
+      in
+      let* modified = Event.edit ?summary ?start ?end_ ?location ?description ?categories ?recurrence ?alarms:alarms_param e in
       let* _ = Calendar_dir.edit_component ~fs calendar_dir components (Component.of_event modified) in
       Printf.printf "Event %s updated.\n" component_id;
       Ok ()
@@ -81,7 +87,13 @@ let run ~component_id ~summary ~start_date ~start_time ~end_date ~end_time ~loca
           | Some p -> Some (Some p)
           | None -> None
       in
-      let* modified = Todo.edit ?summary ?start ?due ?description ?categories ?status ?priority ?percent ?parent:parent_param t in
+      let* alarms_param =
+        if no_alarms then Ok (Some [])
+        else match alarms with
+          | [] -> Ok None
+          | strs -> let* a = parse_alarms strs in Ok (Some a)
+      in
+      let* modified = Todo.edit ?summary ?start ?due ?description ?categories ?status ?priority ?percent ?parent:parent_param ?alarms:alarms_param t in
       let* _ = Calendar_dir.edit_component ~fs calendar_dir components (Component.of_todo modified) in
       Printf.printf "Todo %s updated.\n" component_id;
       Ok ()
@@ -115,11 +127,11 @@ let status_arg =
 let cmd ~fs calendar_dir =
   let run component_id summary start_date start_time end_date end_time location
       description recur categories due_date due_time priority percent status parent no_parent
-      timezone end_timezone () =
+      alarms no_alarms timezone end_timezone () =
     match
       run ~component_id ~summary ~start_date ~start_time ~end_date ~end_time
         ~location ~description ~recur ~categories ~due_date ~due_time ~priority
-        ~percent ~status ~parent ~no_parent ?timezone ?end_timezone ~fs calendar_dir
+        ~percent ~status ~parent ~no_parent ~alarms ~no_alarms ?timezone ?end_timezone ~fs calendar_dir
     with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
@@ -132,7 +144,7 @@ let cmd ~fs calendar_dir =
       $ start_time_arg $ end_date_arg $ end_time_arg $ location_arg
       $ description_arg $ recur_arg $ categories_arg $ due_date_arg
       $ due_time_arg $ priority_arg $ percent_arg $ status_arg $ parent_arg $ no_parent_flag
-      $ timezone_arg $ end_timezone_arg)
+      $ alarm_arg $ no_alarms_flag $ timezone_arg $ end_timezone_arg)
   in
   let doc = "Edit an existing calendar component" in
   let man =
@@ -148,7 +160,7 @@ let cmd ~fs calendar_dir =
       `S Manpage.s_options;
     ]
     @ date_format_manpage_entries @ recurrence_format_manpage_entries
-    @ [ `S Manpage.s_see_also ]
+    @ alarm_format_manpage_entries @ [ `S Manpage.s_see_also ]
   in
   let exit_info =
     [ Cmd.Exit.info ~doc:"on success." 0; Cmd.Exit.info ~doc:"on error." 1 ]

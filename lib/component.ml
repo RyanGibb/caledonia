@@ -53,6 +53,11 @@ let get_file = function
   | Todo t -> Todo.get_file t
   | Journal j -> Journal.get_file j
 
+let get_alarms = function
+  | Event e -> Event.get_alarms e
+  | Todo t -> Todo.get_alarms t
+  | Journal _ -> []
+
 let get_start = function
   | Event e -> Some (Event.get_start e)
   | Todo t -> Todo.get_start t
@@ -60,7 +65,7 @@ let get_start = function
 
 let to_ical_component = function
   | Event e -> `Event (Event.to_ical_event e)
-  | Todo t -> `Todo (Todo.to_ical_todo t, [])
+  | Todo t -> `Todo (Todo.to_ical_todo t, Todo.get_alarms t)
   | Journal j -> `Journal (Journal.to_ical_journal j)
 
 let to_ical_calendar = function
@@ -172,3 +177,25 @@ let format_components ?(format = `Text) ?(tz = !Date.default_timezone) ?get_colo
       let parts = [event_str; todo_str; journal_str] in
       let non_empty = List.filter (fun s -> s <> "") parts in
       String.concat "\n" non_empty
+
+type alarm_fire = {
+  fire_time : Ptime.t;
+  component : t;
+  alarm : Icalendar.alarm;
+}
+
+let query_alarm_fires ~from ~to_ components =
+  let event_fires =
+    List.filter_map to_event components
+    |> List.concat_map (Event.compute_alarm_fires ~from ~to_)
+    |> List.map (fun (af : Event.alarm_fire) ->
+        { fire_time = af.fire_time; component = Event af.event; alarm = af.alarm })
+  in
+  let todo_fires =
+    List.filter_map to_todo components
+    |> List.concat_map (Todo.compute_alarm_fires ~from ~to_)
+    |> List.map (fun (af : Todo.alarm_fire) ->
+        { fire_time = af.fire_time; component = Todo af.todo; alarm = af.alarm })
+  in
+  let all = event_fires @ todo_fires in
+  List.sort (fun a b -> Ptime.compare a.fire_time b.fire_time) all
