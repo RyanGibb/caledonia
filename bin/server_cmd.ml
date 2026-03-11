@@ -66,13 +66,20 @@ let run ~stdin ~stdout ~fs calendar_dir () =
                 in
                 Event_args.parse_end ~end_date ~end_time:req.end_time ~end_timezone
               in
+              let* recurrence =
+                match req.recurrence with
+                | Some r ->
+                    let* p = Event_args.parse_recurrence r in
+                    Ok (Some p)
+                | None -> Ok None
+              in
               let* alarms = Event_args.parse_alarms req.alarms in
               let* event =
                 Event.create ~fs
                   ~calendar_dir_path:(Calendar_dir.get_path calendar_dir)
                   ~summary:req.summary ~start ?end_
                   ?location:req.location ?description:req.description
-                  ~alarms calendar_name
+                  ?recurrence ~alarms calendar_name
               in
               let* events = !mutable_events in
               let* events = Calendar_dir.add_event ~fs calendar_dir events event in
@@ -102,6 +109,13 @@ let run ~stdin ~stdout ~fs calendar_dir () =
                 in
                 Event_args.parse_end ~end_date ~end_time:req.end_time ~end_timezone
               in
+              let* recurrence =
+                match req.recurrence with
+                | Some r ->
+                    let* p = Event_args.parse_recurrence r in
+                    Ok (Some p)
+                | None -> Ok None
+              in
               let* alarms_param =
                 if req.no_alarms then Ok (Some [])
                 else match req.alarms with
@@ -110,7 +124,7 @@ let run ~stdin ~stdout ~fs calendar_dir () =
               in
               let* modified = Event.edit ?summary:req.summary ?start ?end_
                   ?location:req.location ?description:req.description
-                  ?alarms:alarms_param event in
+                  ?recurrence ?alarms:alarms_param event in
               let* events = Calendar_dir.edit_event ~fs calendar_dir events modified in
               mutable_events := Ok events;
               Ok (sexp_of_response (Ok (Events [modified])))

@@ -246,6 +246,8 @@ Return non-nil if the event was found."
                (start-tz (caledonia--get-key 'start_tz event))
                (end-tz (caledonia--get-key 'end_tz event))
                (is-date (caledonia--get-key 'is_date event))
+               (recurring (caledonia--get-key 'recurring event))
+               (alarms (caledonia--get-key 'alarms event))
                (location (caledonia--get-key 'location event))
                (description (caledonia--get-key 'description event))
                (file (caledonia--get-key 'file event))
@@ -267,6 +269,10 @@ Return non-nil if the event was found."
           (when end-fmt
             (insert (propertize "End: " 'face 'bold) end-fmt
                     (if end-tz (format " (%s)" end-tz) "") "\n"))
+          (when recurring
+            (insert (propertize "Recurring: " 'face 'bold) "yes\n"))
+          (when alarms
+            (insert (propertize "Alarms: " 'face 'bold) alarms "\n"))
           (when location
             (insert (propertize "Location: " 'face 'bold) location "\n"))
           (when description
@@ -588,7 +594,7 @@ Uses current time for relative dates."
 (defvar caledonia-event-form--date-fields '("Start" "End")
   "Field names that should use org-read-date.")
 
-(defvar caledonia-event-form--completing-fields '("Timezone")
+(defvar caledonia-event-form--completing-fields '("Timezone" "End Timezone")
   "Field names that should use completing-read.")
 
 (defvar caledonia-event-form-mode-map
@@ -752,6 +758,7 @@ For multi-line fields like Description, walks backwards to find the label."
              (current (string-trim (match-string 2 line)))
              (candidates (pcase field
                            ("Timezone" (caledonia--timezone-list))
+                           ("End Timezone" (caledonia--timezone-list))
                            (_ nil)))
              (new-val (completing-read (format "%s: " field)
                                        candidates nil nil
@@ -798,6 +805,12 @@ Returns (date . time) where time may be nil."
          (start-str (caledonia-event-form--get-field "Start"))
          (end-str (caledonia-event-form--get-field "End"))
          (timezone (caledonia-event-form--get-field "Timezone"))
+         (end-timezone (caledonia-event-form--get-field "End Timezone"))
+         (recurrence (caledonia-event-form--get-field "Recurrence"))
+         (alarms-str (caledonia-event-form--get-field "Alarms"))
+         (alarms (when alarms-str
+                   (mapcar #'string-trim
+                           (split-string alarms-str "," t "[ \t]+"))))
          (location (caledonia-event-form--get-field "Location"))
          (description (caledonia-event-form--get-field "Description"))
          (start (caledonia-event-form--parse-datetime start-str))
@@ -817,8 +830,11 @@ Returns (date . time) where time may be nil."
                               ("start_date" . ,start-date)
                               ("start_time" . ,start-time)
                               ("timezone" . ,timezone)
+                              ("end_timezone" . ,end-timezone)
                               ("end_date" . ,end-date)
                               ("end_time" . ,end-time)
+                              ("recurrence" . ,recurrence)
+                              ("alarms" . ,alarms)
                               ("location" . ,location)
                               ("description" . ,description)))
                     (request-str (format "(CreateEvent (%s))"
@@ -834,6 +850,9 @@ Returns (date . time) where time may be nil."
                               ("end_date" . ,end-date)
                               ("end_time" . ,end-time)
                               ("timezone" . ,timezone)
+                              ("end_timezone" . ,end-timezone)
+                              ("recurrence" . ,recurrence)
+                              ("alarms" . ,alarms)
                               ("location" . ,location)
                               ("description" . ,description)))
                     (request-str (format "(EditEvent (%s))"
@@ -879,6 +898,9 @@ Use C-c C-d on a date field to pick with org-read-date."
         (caledonia-event-form--insert-field "Start")
         (caledonia-event-form--insert-field "End")
         (caledonia-event-form--insert-field "Timezone")
+        (caledonia-event-form--insert-field "End Timezone")
+        (caledonia-event-form--insert-field "Recurrence")
+        (caledonia-event-form--insert-field "Alarms")
         (caledonia-event-form--insert-field "Location")
         (caledonia-event-form--insert-field "Description")
         (caledonia-event-form--insert-help))
@@ -903,6 +925,9 @@ Use C-c C-d on a date field to pick with org-read-date."
            (start (caledonia--get-key 'start event))
            (end (caledonia--get-key 'end event))
            (start-tz (or (caledonia--get-key 'start_tz event) ""))
+           (end-tz (or (caledonia--get-key 'end_tz event) ""))
+           (alarms (or (caledonia--get-key 'alarms event) ""))
+           (recurring (caledonia--get-key 'recurring event))
            (is-date (caledonia--get-key 'is_date event))
            (start-str (when start
                         (if is-date
@@ -926,6 +951,9 @@ Use C-c C-d on a date field to pick with org-read-date."
           (caledonia-event-form--insert-field "Start" start-str)
           (caledonia-event-form--insert-field "End" end-str)
           (caledonia-event-form--insert-field "Timezone" start-tz)
+          (caledonia-event-form--insert-field "End Timezone" end-tz)
+          (caledonia-event-form--insert-field "Recurrence")
+          (caledonia-event-form--insert-field "Alarms" alarms)
           (caledonia-event-form--insert-field "Location" location)
           (caledonia-event-form--insert-field "Description" description)
           (caledonia-event-form--insert-help))

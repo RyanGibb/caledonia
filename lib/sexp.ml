@@ -56,6 +56,7 @@ type create_event_request = {
   description : string option; [@sexp.option]
   timezone : string option; [@sexp.option]
   end_timezone : string option; [@sexp.option]
+  recurrence : string option; [@sexp.option]
   alarms : string list; [@default []]
 }
 [@@deriving sexp]
@@ -71,6 +72,7 @@ type edit_event_request = {
   description : string option; [@sexp.option]
   timezone : string option; [@sexp.option]
   end_timezone : string option; [@sexp.option]
+  recurrence : string option; [@sexp.option]
   alarms : string list; [@default []]
   no_alarms : bool; [@default false]
 }
