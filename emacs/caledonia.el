@@ -96,6 +96,8 @@
 (defvar caledonia-id-history nil "History for event ID inputs.")
 (defvar caledonia-limit-history nil "History for limit inputs.")
 (defvar caledonia-search-prompt-history nil "History for search prompt inputs.")
+(defvar caledonia-summary-history nil "History for event summary inputs.")
+(defvar caledonia-location-history nil "History for event location inputs.")
 
 ;; Internal variables
 
@@ -766,23 +768,24 @@ TO-DATE is required; a default will be used if not provided."
         (cadr response)
       nil)))
 
-(defun caledonia--read-date (prompt &optional default)
-  "Read a date with PROMPT using org-read-date, with optional DEFAULT."
-  (let ((date (org-read-date nil nil nil prompt
-                             (when default
-                               (date-to-time default))
-                             nil t)))
-    (when (and date (not (string-empty-p date)))
-      date)))
+(defun caledonia--read-datetime (prompt)
+  "Read a date+time with PROMPT using org-read-date.
+Returns (date . time) cons where date is \"YYYY-MM-DD\" and time is
+\"HH:MM\" or nil if no time was given."
+  (let* ((input (org-read-date nil nil nil prompt nil nil t))
+         (parts (split-string input " ")))
+    (cons (car parts)
+          (when (and (cdr parts) (string-match-p "^[0-9][0-9]:[0-9][0-9]" (cadr parts)))
+            (cadr parts)))))
 
-(defun caledonia--read-time (prompt &optional default)
-  "Read a time with PROMPT, with optional DEFAULT value."
-  (let ((time (read-string (if default
-                               (format "%s [%s]: " prompt default)
-                             (format "%s: " prompt))
-                           nil nil default)))
-    (when (and time (not (string-empty-p time)))
-      time)))
+(defun caledonia--read-datetime-with-default (prompt default)
+  "Read a date+time with PROMPT using org-read-date, with DEFAULT pre-filled.
+DEFAULT should be \"YYYY-MM-DD HH:MM\".  Returns (date . time) cons."
+  (let* ((input (org-read-date nil nil nil prompt nil default t))
+         (parts (split-string input " ")))
+    (cons (car parts)
+          (when (and (cdr parts) (string-match-p "^[0-9][0-9]:[0-9][0-9]" (cadr parts)))
+            (cadr parts)))))
 
 (defun caledonia--sexp-field (key value)
   "Format KEY VALUE pair as sexp field string, or empty string if VALUE is nil."
@@ -801,30 +804,49 @@ TO-DATE is required; a default will be used if not provided."
     (mapconcat #'identity parts " ")))
 
 (defun caledonia-add-event ()
-  "Add a new event via the server."
+  "Add a new event via the server.
+Prompts for calendar, summary, start and end (using org-read-date).
+End defaults to start + 1 hour. Location is optional."
   (interactive)
   (let* ((calendars (caledonia--get-available-calendars))
-         (calendar (completing-read "Calendar: " calendars nil t))
-         (summary (read-string "Summary: "))
-         (start-date (caledonia--read-date "Start date"))
-         (start-time (caledonia--read-time "Start time (HH:MM)"))
-         (end-date (caledonia--read-date "End date"))
-         (end-time (caledonia--read-time "End time (HH:MM)"))
-         (location (read-string "Location (empty for none): "))
-         (description (read-string "Description (empty for none): "))
+         (calendar (if (= (length calendars) 1)
+                       (car calendars)
+                     (completing-read "Calendar: " calendars nil t)))
+         (summary (read-string "Summary: " nil 'caledonia-summary-history))
+         (start (caledonia--read-datetime "Start"))
+         (start-date (car start))
+         (start-time (cdr start))
+         ;; Default end: start + 1h if timed
+         (end-default (when start-time
+                        (let* ((parsed (parse-time-string
+                                        (format "%s %s" start-date start-time)))
+                               (time (apply #'encode-time
+                                            (append (cl-subseq parsed 0 6)
+                                                    (list nil -1))))
+                               (end-time (time-add time 3600)))
+                          (format-time-string "%Y-%m-%d %H:%M" end-time))))
+         (end (when start-time
+                (caledonia--read-datetime-with-default "End" end-default)))
+         (end-date (when end (car end)))
+         (end-time (when end (cdr end)))
+         (location (read-string "Location: " nil 'caledonia-location-history))
          (fields `(("calendar" . ,calendar)
                    ("summary" . ,summary)
                    ("start_date" . ,start-date)
-                   ("start_time" . ,(when start-time start-time))
-                   ("end_date" . ,(when (and end-date (not (string-empty-p end-date))) end-date))
-                   ("end_time" . ,(when (and end-time (not (string-empty-p end-time))) end-time))
-                   ("location" . ,(when (not (string-empty-p location)) location))
-                   ("description" . ,(when (not (string-empty-p description)) description))))
-         (request-str (format "(CreateEvent (%s))" (caledonia--build-sexp-fields fields))))
+                   ("start_time" . ,start-time)
+                   ("end_date" . ,(when (and end-date (not (string= end-date start-date)))
+                                    end-date))
+                   ("end_time" . ,end-time)
+                   ("location" . ,(when (not (string-empty-p location)) location))))
+         (request-str (format "(CreateEvent (%s))"
+                              (caledonia--build-sexp-fields fields))))
     (caledonia--send-request request-str)
     (message "Event created: %s" summary)
-    (when (eq major-mode 'caledonia-mode)
-      (caledonia-refresh))))
+    (when (or (eq major-mode 'caledonia-mode)
+              (eq major-mode 'caledonia-agenda-mode))
+      (if (eq major-mode 'caledonia-agenda-mode)
+          (caledonia-agenda-refresh)
+        (caledonia-refresh)))))
 
 (defun caledonia-edit-event ()
   "Edit the event at point via the server."

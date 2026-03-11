@@ -1,3 +1,4 @@
 .envrc
 _build/
 _opam/
+*.elc
