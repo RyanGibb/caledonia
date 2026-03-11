@@ -452,8 +452,16 @@ FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events
         (insert (propertize (caledonia--format-day-header year month day)
                             'face 'caledonia-agenda-date-face)
                 "\n")
-        ;; Insert events for this day
-        (dolist (event day-events)
+        ;; Insert events for this day (all-day events first, then by time)
+        (dolist (event (sort (copy-sequence day-events)
+                             (lambda (a b)
+                               (let ((a-date (caledonia--get-key 'is_date a))
+                                     (b-date (caledonia--get-key 'is_date b)))
+                                 (cond
+                                  ((and a-date (not b-date)) t)
+                                  ((and (not a-date) b-date) nil)
+                                  (t (string< (or (caledonia--get-key 'start a) "")
+                                              (or (caledonia--get-key 'start b) ""))))))))
           (let* ((start (caledonia--get-key 'start event))
                  (end-val (caledonia--get-key 'end event))
                  (summary (or (caledonia--get-key 'summary event) "(no summary)"))
