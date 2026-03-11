@@ -42,7 +42,18 @@
       (evil-normalize-keymaps)
       (caledonia-evil--setup-bindings)))
 
-  (add-hook 'caledonia-agenda-mode-hook 'caledonia-evil--setup-integration))
+  (add-hook 'caledonia-agenda-mode-hook 'caledonia-evil--setup-integration)
+
+  (defun caledonia-evil--setup-form-bindings ()
+    "Set up Evil keybindings for `caledonia-event-form-mode`."
+    (evil-define-key* 'normal caledonia-event-form-mode-map
+      "ZZ" 'caledonia-event-form-submit
+      "ZQ" 'caledonia-event-form-cancel
+      (kbd "C-c C-c") 'caledonia-event-form-submit
+      (kbd "C-c C-k") 'caledonia-event-form-cancel
+      (kbd "C-c C-d") 'caledonia-event-form-pick-date))
+
+  (add-hook 'caledonia-event-form-mode-hook 'caledonia-evil--setup-form-bindings))
 
 (provide 'caledonia-evil)
 ;;; caledonia-evil.el ends here

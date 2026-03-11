@@ -159,16 +159,15 @@
       (accept-process-output caledonia--server-process 0 100000))) ; Wait 100ms
   (unless caledonia--response-flag
     (error "Caledonia  Timeout or server died waiting for response"))
-  (condition-case err
-      (let ((response-sexp (read caledonia--response-line)))
-        (unless (and (listp response-sexp) (memq (car response-sexp) '(Ok Error)))
-          (error "Caledonia  Invalid response format: %S" response-sexp))
-        (if (eq (car response-sexp) 'Error)
-            (error "Caledonia Server Error: %s" (cadr response-sexp))
-          ;; Return the (Ok ...) payload
-          (cadr response-sexp)))
-    (error "Caledonia Failed to parse response line: %s"
-           caledonia--response-line (error-message-string err))))
+  (let ((response-sexp (condition-case nil
+                           (read caledonia--response-line)
+                         (error (error "Caledonia: failed to parse response: %s"
+                                       caledonia--response-line)))))
+    (unless (and (listp response-sexp) (memq (car response-sexp) '(Ok Error)))
+      (error "Caledonia: invalid response format: %S" response-sexp))
+    (if (eq (car response-sexp) 'Error)
+        (error "Caledonia: %s" (cadr response-sexp))
+      (cadr response-sexp))))
 
 (defun caledonia--get-events (event-payload)
   "Parse EVENT-PAYLOAD of structure (Events (events...))."
@@ -240,63 +239,59 @@ Return non-nil if the event was found."
       (let ((inhibit-read-only t))
         (erase-buffer)
         (special-mode)
-        (let* ((id (caledonia--get-key 'id event))
-               (summary (caledonia--get-key 'summary event))
-               (description (caledonia--get-key 'description event))
+        (let* ((summary (caledonia--get-key 'summary event))
+               (calendar (caledonia--get-key 'calendar event))
                (start (caledonia--get-key 'start event))
                (end (caledonia--get-key 'end event))
-               (location (caledonia--get-key 'location event))
-               (calendar (caledonia--get-key 'calendar event))
-               (file (caledonia--get-key 'file event))
                (start-tz (caledonia--get-key 'start_tz event))
                (end-tz (caledonia--get-key 'end_tz event))
-               (start-str (when start (caledonia--format-timestamp start)))
-               (end-str (when end (caledonia--format-timestamp end))))
-          (when id
-            (insert (propertize "Summary: " 'face 'bold) summary "\n"))
-          (when id
-            (insert (propertize "ID: " 'face 'bold) id "\n"))
+               (is-date (caledonia--get-key 'is_date event))
+               (location (caledonia--get-key 'location event))
+               (description (caledonia--get-key 'description event))
+               (file (caledonia--get-key 'file event))
+               (start-fmt (when start
+                            (if is-date
+                                (caledonia--format-timestamp start "%Y-%m-%d")
+                              (caledonia--format-timestamp start "%Y-%m-%d %H:%M"))))
+               (end-fmt (when end
+                          (if is-date
+                              (caledonia--format-timestamp end "%Y-%m-%d")
+                            (caledonia--format-timestamp end "%Y-%m-%d %H:%M")))))
           (when calendar
             (insert (propertize "Calendar: " 'face 'bold) calendar "\n"))
-          (when start-str
-            (insert (propertize "Start: " 'face 'bold) start-str
-                    (if start-tz (format " (%s)" start-tz) "")
-                    "\n"))
-          (when end-str
-            (insert (propertize "End: " 'face 'bold) end-str
-                    (if end-tz (format " (%s)" end-tz) "")
-                    "\n"))
+          (when summary
+            (insert (propertize "Summary: " 'face 'bold) summary "\n"))
+          (when start-fmt
+            (insert (propertize "Start: " 'face 'bold) start-fmt
+                    (if start-tz (format " (%s)" start-tz) "") "\n"))
+          (when end-fmt
+            (insert (propertize "End: " 'face 'bold) end-fmt
+                    (if end-tz (format " (%s)" end-tz) "") "\n"))
           (when location
             (insert (propertize "Location: " 'face 'bold) location "\n"))
+          (when description
+            (insert (propertize "Description: " 'face 'bold) description "\n"))
           (when file
-            (insert (propertize "File: " 'face 'bold)
+            (insert "\n" (propertize "File: " 'face 'bold)
                     (propertize file 'face 'link
                                 'mouse-face 'highlight
-                                'help-echo "Click to open file with highlighting"
+                                'help-echo "Click to open file"
                                 'keymap (let ((map (make-sparse-keymap))
                                               (event-copy event))
                                           (define-key map [mouse-1]
                                                       (lambda ()
                                                         (interactive)
-                                                        (let ((file-path file)
-                                                              (id-val (caledonia--get-key 'id event-copy)))
-                                                          (find-file file-path)
-                                                          (caledonia--find-and-highlight-event-in-file
-                                                           file-path id-val))))
+                                                        (find-file file)
+                                                        (caledonia--find-and-highlight-event-in-file
+                                                         file (caledonia--get-key 'id event-copy))))
                                           (define-key map (kbd "RET")
                                                       (lambda ()
                                                         (interactive)
-                                                        (let ((file-path file)
-                                                              (id-val (caledonia--get-key 'id event-copy)))
-                                                          (find-file file-path)
-                                                          (caledonia--find-and-highlight-event-in-file
-                                                           file-path id-val))))
+                                                        (find-file file)
+                                                        (caledonia--find-and-highlight-event-in-file
+                                                         file (caledonia--get-key 'id event-copy))))
                                           map))
-                    "\n"))
-          (when description
-            (insert "\n" (propertize "Description:" 'face 'bold) "\n"
-                    (propertize "------------" 'face 'bold) "\n"
-                    description "\n")))))
+                    "\n")))))
     (switch-to-buffer-other-window buf)))
 
 (defun caledonia--highlight-region (start end)
@@ -325,25 +320,6 @@ The from-date can be nil to indicate no start date constraint."
     (setq to (org-read-date nil nil nil "To date: " nil nil t))
     (cons from to)))
 
-(defun caledonia--read-datetime (prompt)
-  "Read a date+time with PROMPT using org-read-date.
-Returns (date . time) cons where date is \"YYYY-MM-DD\" and time is
-\"HH:MM\" or nil if no time was given."
-  (let* ((input (org-read-date nil nil nil prompt nil nil t))
-         (parts (split-string input " ")))
-    (cons (car parts)
-          (when (and (cdr parts) (string-match-p "^[0-9][0-9]:[0-9][0-9]" (cadr parts)))
-            (cadr parts)))))
-
-(defun caledonia--read-datetime-with-default (prompt default)
-  "Read a date+time with PROMPT using org-read-date, with DEFAULT pre-filled.
-DEFAULT should be \"YYYY-MM-DD HH:MM\".  Returns (date . time) cons."
-  (let* ((input (org-read-date nil nil nil prompt nil default t))
-         (parts (split-string input " ")))
-    (cons (car parts)
-          (when (and (cdr parts) (string-match-p "^[0-9][0-9]:[0-9][0-9]" (cadr parts)))
-            (cadr parts)))))
-
 (defun caledonia--get-available-calendars ()
   "Get list of available calendar names from server."
   (let ((response (caledonia--send-request "ListCalendars")))
@@ -351,13 +327,20 @@ DEFAULT should be \"YYYY-MM-DD HH:MM\".  Returns (date . time) cons."
         (cadr response)
       nil)))
 
+(defun caledonia--sexp-escape-string (s)
+  "Escape S for sexp serialization, handling newlines and backslashes."
+  (let ((escaped (replace-regexp-in-string "\\\\" "\\\\\\\\" s)))
+    (setq escaped (replace-regexp-in-string "\n" "\\\\n" escaped))
+    (setq escaped (replace-regexp-in-string "\"" "\\\\\"" escaped))
+    (format "\"%s\"" escaped)))
+
 (defun caledonia--sexp-field (key value)
   "Format KEY VALUE pair as sexp field string, or empty string if VALUE is nil."
   (cond
    ((null value) "")
    ((listp value)
-    (format "(%s (%s))" key (mapconcat (lambda (s) (format "%S" s)) value " ")))
-   (t (format "(%s %S)" key value))))
+    (format "(%s (%s))" key (mapconcat (lambda (s) (caledonia--sexp-escape-string s)) value " ")))
+   (t (format "(%s %s)" key (caledonia--sexp-escape-string value)))))
 
 (defun caledonia--build-sexp-fields (fields)
   "Build sexp string from alist FIELDS, omitting nil values."
@@ -558,108 +541,398 @@ Uses current time for relative dates."
            (decoded (decode-time time)))
       (list (nth 5 decoded) (nth 4 decoded) (nth 3 decoded)))))
 
-;; Event CRUD operations
+;; Timezone completion
+
+(defvar caledonia--timezone-list nil
+  "Cached list of IANA timezone names.")
+
+(defun caledonia--timezone-list ()
+  "Return a list of IANA timezone names from the system zoneinfo database."
+  (or caledonia--timezone-list
+      (setq caledonia--timezone-list
+            (let ((zoneinfo-dir (cl-find-if #'file-directory-p
+                                            '("/etc/zoneinfo"
+                                              "/usr/share/zoneinfo"
+                                              "/usr/lib/zoneinfo"
+                                              "/usr/share/lib/zoneinfo"))))
+              (when zoneinfo-dir
+                (sort
+                 (cl-remove-if-not
+                  (lambda (s) (string-match-p "/" s))
+                  (mapcar (lambda (f)
+                            (string-remove-prefix (concat zoneinfo-dir "/") f))
+                          (directory-files-recursively
+                           zoneinfo-dir ""
+                           nil
+                           (lambda (dir)
+                             (let ((name (file-name-nondirectory dir)))
+                               (member name '("Africa" "America" "Antarctica" "Arctic"
+                                              "Asia" "Atlantic" "Australia" "Europe"
+                                              "Indian" "Pacific" "Etc")))))))
+                 #'string<))))))
+
+;; Event form buffer
+
+(defvar caledonia-event-form-buffer "*Caledonia Event*"
+  "Buffer name for the event form.")
+
+(defvar-local caledonia-event-form--type nil
+  "Type of form: `create' or `edit'.")
+
+(defvar-local caledonia-event-form--id nil
+  "Event ID when editing.")
+
+(defvar-local caledonia-event-form--return-buffer nil
+  "Buffer to return to after form submission.")
+
+(defvar caledonia-event-form--date-fields '("Start" "End")
+  "Field names that should use org-read-date.")
+
+(defvar caledonia-event-form--completing-fields '("Timezone")
+  "Field names that should use completing-read.")
+
+(defvar caledonia-event-form-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map text-mode-map)
+    (define-key map (kbd "C-c C-c") 'caledonia-event-form-submit)
+    (define-key map (kbd "C-c C-k") 'caledonia-event-form-cancel)
+    (define-key map (kbd "C-c C-d") 'caledonia-event-form-pick-date)
+    (define-key map (kbd "TAB") 'caledonia-event-form-next-field)
+    (define-key map (kbd "<backtab>") 'caledonia-event-form-prev-field)
+    (define-key map (kbd "RET") 'caledonia-event-form-newline)
+    map)
+  "Keymap for Caledonia event form mode.")
+
+(defun caledonia-event-form-newline ()
+  "Insert a newline in the Description field, or move to next field otherwise."
+  (interactive)
+  (if (string= (caledonia-event-form--current-field) "Description")
+      (newline)
+    (caledonia-event-form-next-field)))
+
+(define-derived-mode caledonia-event-form-mode text-mode "Caledonia-Event"
+  "Major mode for editing calendar event fields.
+\\<caledonia-event-form-mode-map>
+\\[caledonia-event-form-submit] to submit, \\[caledonia-event-form-cancel] to cancel.
+TAB to next field (opens org-read-date on date fields), S-TAB to previous field.")
+
+(defun caledonia-event-form--insert-field (name &optional value)
+  "Insert a form field with NAME as read-only label and VALUE as editable.
+If NAME is \"Description\", the field supports multiple lines."
+  (let ((start (point)))
+    (insert (propertize (format "%s: " name)
+                        'read-only t
+                        'front-sticky '(read-only)
+                        'rear-nonsticky '(read-only face)
+                        'face 'bold
+                        'field-name name))
+    (if (string= name "Description")
+        (insert (or value "") "\n")
+      (insert (or value ""))
+      (insert (propertize "\n" 'read-only t
+                          'front-sticky nil
+                          'rear-nonsticky '(read-only))))))
+
+(defun caledonia-event-form--insert-help ()
+  "Insert the help text at the bottom of the form."
+  (insert (propertize "\n" 'read-only t
+                      'rear-nonsticky '(read-only)))
+  (let ((help (concat
+               (propertize "TAB" 'face 'bold) " next field  "
+               (propertize "S-TAB" 'face 'bold) " prev field  "
+               (propertize "C-c C-c" 'face 'bold) " submit  "
+               (propertize "C-c C-k" 'face 'bold) " cancel")))
+    (insert (propertize help 'read-only t))))
+
+(defun caledonia-event-form--get-field (name)
+  "Get the value of field NAME from the form buffer.
+For the Description field, captures multiple lines up to the help text."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward (format "^%s: " (regexp-quote name)) nil t)
+      (let* ((value-start (point))
+             (value-end (if (string= name "Description")
+                            ;; Capture everything until the help separator
+                            (or (and (re-search-forward "^\n" nil t)
+                                     (match-beginning 0))
+                                (point-max))
+                          (line-end-position)))
+             (val (string-trim (buffer-substring-no-properties value-start value-end))))
+        (unless (string-empty-p val) val)))))
+
+(defun caledonia-event-form--current-field ()
+  "Return the field name on the current line, or nil.
+For multi-line fields like Description, walks backwards to find the label."
+  (let ((line (buffer-substring-no-properties
+               (line-beginning-position) (line-end-position))))
+    (if (string-match "^\\([^:]+\\): " line)
+        (match-string 1 line)
+      ;; On a continuation line — walk backwards to find the field label
+      (save-excursion
+        (while (and (not (bobp))
+                    (let ((l (buffer-substring-no-properties
+                              (line-beginning-position) (line-end-position))))
+                      (not (string-match "^\\([^:]+\\): " l))))
+          (forward-line -1))
+        (let ((l (buffer-substring-no-properties
+                  (line-beginning-position) (line-end-position))))
+          (when (string-match "^\\([^:]+\\): " l)
+            (match-string 1 l)))))))
+
+(defun caledonia-event-form--goto-field-value ()
+  "Move point to the value portion of the current field line."
+  (beginning-of-line)
+  (when (re-search-forward "^[^:]+: " (line-end-position) t)
+    (point)))
+
+(defun caledonia-event-form--on-label-line-p ()
+  "Return non-nil if the current line has a field label (Name: ...)."
+  (let ((line (buffer-substring-no-properties
+               (line-beginning-position) (line-end-position))))
+    (string-match-p "^[^:]+: " line)))
+
+(defun caledonia-event-form-next-field ()
+  "Move to the next field.  On date fields, open org-read-date."
+  (interactive)
+  (let ((start-field (caledonia-event-form--current-field)))
+    (forward-line 1)
+    ;; Skip continuation lines of the current field and non-field lines
+    (while (and (not (eobp))
+                (let ((f (caledonia-event-form--current-field)))
+                  (or (not f)
+                      (and (equal f start-field)
+                           (not (caledonia-event-form--on-label-line-p))))))
+      (forward-line 1))
+    (when (caledonia-event-form--on-label-line-p)
+      (caledonia-event-form--goto-field-value)
+      (let ((field (caledonia-event-form--current-field)))
+        (cond
+         ((member field caledonia-event-form--date-fields)
+          (caledonia-event-form-pick-date))
+         ((member field caledonia-event-form--completing-fields)
+          (caledonia-event-form-pick-completing)))))))
+
+(defun caledonia-event-form-prev-field ()
+  "Move to the previous field.  On date fields, open org-read-date."
+  (interactive)
+  (let ((start-field (caledonia-event-form--current-field)))
+    ;; Move up past current field's label line
+    (forward-line -1)
+    (while (and (not (bobp))
+                (let ((f (caledonia-event-form--current-field)))
+                  (or (not f)
+                      (and (equal f start-field)
+                           (not (caledonia-event-form--on-label-line-p))))))
+      (forward-line -1))
+    ;; If we landed on the same field's label, go up one more field
+    (when (and (equal (caledonia-event-form--current-field) start-field)
+               (caledonia-event-form--on-label-line-p)
+               (not (bobp)))
+      (forward-line -1)
+      (while (and (not (bobp))
+                  (not (caledonia-event-form--on-label-line-p)))
+        (forward-line -1)))
+    (when (caledonia-event-form--on-label-line-p)
+      (caledonia-event-form--goto-field-value)
+      (let ((field (caledonia-event-form--current-field)))
+        (cond
+         ((member field caledonia-event-form--date-fields)
+          (caledonia-event-form-pick-date))
+         ((member field caledonia-event-form--completing-fields)
+          (caledonia-event-form-pick-completing)))))))
+
+(defun caledonia-event-form-pick-completing ()
+  "Use completing-read for the field at point (e.g. timezone)."
+  (interactive)
+  (let* ((line-start (line-beginning-position))
+         (line-end (line-end-position))
+         (line (buffer-substring-no-properties line-start line-end)))
+    (when (string-match "^\\([^:]+\\): \\(.*\\)$" line)
+      (let* ((field (match-string 1 line))
+             (current (string-trim (match-string 2 line)))
+             (candidates (pcase field
+                           ("Timezone" (caledonia--timezone-list))
+                           (_ nil)))
+             (new-val (completing-read (format "%s: " field)
+                                       candidates nil nil
+                                       (unless (string-empty-p current) current)
+                                       'caledonia-timezone-history)))
+        (let ((inhibit-read-only t))
+          (delete-region line-start (min (1+ line-end) (point-max)))
+          (caledonia-event-form--insert-field field new-val)
+          (forward-line -1)
+          (caledonia-event-form--goto-field-value))))))
+
+(defun caledonia-event-form-pick-date ()
+  "Use org-read-date to pick a date for the field at point."
+  (interactive)
+  (let* ((line-start (line-beginning-position))
+         (line-end (line-end-position))
+         (line (buffer-substring-no-properties line-start line-end)))
+    (when (string-match "^\\([^:]+\\): \\(.*\\)$" line)
+      (let* ((field (match-string 1 line))
+             (current (string-trim (match-string 2 line)))
+             (default (unless (string-empty-p current) current))
+             (new-val (org-read-date nil nil nil (format "%s: " field) nil default t)))
+        (let ((inhibit-read-only t))
+          (delete-region line-start (min (1+ line-end) (point-max)))
+          (caledonia-event-form--insert-field field new-val)
+          (forward-line -1)
+          (caledonia-event-form--goto-field-value))))))
+
+(defun caledonia-event-form--parse-datetime (str)
+  "Parse STR as \"YYYY-MM-DD HH:MM\" or \"YYYY-MM-DD\".
+Returns (date . time) where time may be nil."
+  (when str
+    (let ((parts (split-string str " ")))
+      (cons (car parts)
+            (when (and (cdr parts) (string-match-p "^[0-9][0-9]:[0-9][0-9]" (cadr parts)))
+              (cadr parts))))))
+
+(defun caledonia-event-form-submit ()
+  "Submit the event form."
+  (interactive)
+  (let* ((type caledonia-event-form--type)
+         (calendar (caledonia-event-form--get-field "Calendar"))
+         (summary (caledonia-event-form--get-field "Summary"))
+         (start-str (caledonia-event-form--get-field "Start"))
+         (end-str (caledonia-event-form--get-field "End"))
+         (timezone (caledonia-event-form--get-field "Timezone"))
+         (location (caledonia-event-form--get-field "Location"))
+         (description (caledonia-event-form--get-field "Description"))
+         (start (caledonia-event-form--parse-datetime start-str))
+         (start-date (when start (car start)))
+         (start-time (when start (cdr start)))
+         (end (caledonia-event-form--parse-datetime end-str))
+         (end-date (when end (car end)))
+         (end-time (when end (cdr end)))
+         (return-buf caledonia-event-form--return-buffer))
+    ;; Submit to server — let server validate, report errors via user-error
+    (condition-case err
+        (progn
+          (pcase type
+            ('create
+             (let* ((fields `(("calendar" . ,calendar)
+                              ("summary" . ,summary)
+                              ("start_date" . ,start-date)
+                              ("start_time" . ,start-time)
+                              ("timezone" . ,timezone)
+                              ("end_date" . ,end-date)
+                              ("end_time" . ,end-time)
+                              ("location" . ,location)
+                              ("description" . ,description)))
+                    (request-str (format "(CreateEvent (%s))"
+                                         (caledonia--build-sexp-fields fields))))
+               (caledonia--send-request request-str)
+               (message "Event created: %s" summary)))
+            ('edit
+             (let* ((id caledonia-event-form--id)
+                    (fields `(("id" . ,id)
+                              ("summary" . ,summary)
+                              ("start_date" . ,start-date)
+                              ("start_time" . ,start-time)
+                              ("end_date" . ,end-date)
+                              ("end_time" . ,end-time)
+                              ("timezone" . ,timezone)
+                              ("location" . ,location)
+                              ("description" . ,description)))
+                    (request-str (format "(EditEvent (%s))"
+                                         (caledonia--build-sexp-fields fields))))
+               (caledonia--send-request request-str)
+               (message "Event updated: %s" (or summary "(no summary)")))))
+          ;; Only close form and refresh on success
+          (quit-window t)
+          (when (and return-buf (buffer-live-p return-buf))
+            (switch-to-buffer return-buf)
+            (when (eq major-mode 'caledonia-agenda-mode)
+              (caledonia-refresh))))
+      (error (user-error "%s" (error-message-string err))))))
+
+(defun caledonia-event-form-cancel ()
+  "Cancel the event form."
+  (interactive)
+  (let ((return-buf caledonia-event-form--return-buffer))
+    (quit-window t)
+    (when (and return-buf (buffer-live-p return-buf))
+      (switch-to-buffer return-buf))
+    (message "Cancelled.")))
 
 (defun caledonia-add-event ()
-  "Add a new event via the server.
-Prompts for calendar, summary, start and end (using org-read-date).
-End defaults to start + 1 hour. Location is optional."
+  "Add a new event using a form buffer.
+Fill in the fields, then press C-c C-c to create or C-c C-k to cancel.
+Use C-c C-d on a date field to pick with org-read-date."
   (interactive)
   (let* ((calendars (caledonia--get-available-calendars))
          (calendar (if (= (length calendars) 1)
                        (car calendars)
                      (completing-read "Calendar: " calendars nil t)))
-         (summary (read-string "Summary: " nil 'caledonia-summary-history))
-         (start (caledonia--read-datetime "Start"))
-         (start-date (car start))
-         (start-time (cdr start))
-         ;; Default end: start + 1h if timed, same day if all-day
-         (end-default (if start-time
-                         (let* ((parsed (parse-time-string
-                                         (format "%s %s" start-date start-time)))
-                                (time (apply #'encode-time
-                                             (append (cl-subseq parsed 0 6)
-                                                     (list nil -1))))
-                                (end-time (time-add time 3600)))
-                           (format-time-string "%Y-%m-%d %H:%M" end-time))
-                       start-date))
-         (end (caledonia--read-datetime-with-default "End" end-default))
-         (end-date (when end (car end)))
-         (end-time (when end (cdr end)))
-         (timezone (read-string "Timezone (blank for system default): "
-                               nil 'caledonia-timezone-history))
-         (location (read-string "Location: " nil 'caledonia-location-history))
-         (fields `(("calendar" . ,calendar)
-                   ("summary" . ,summary)
-                   ("start_date" . ,start-date)
-                   ("start_time" . ,start-time)
-                   ("timezone" . ,(when (and timezone (not (string-empty-p timezone)))
-                                    timezone))
-                   ("end_date" . ,(when (and end-date (not (string= end-date start-date)))
-                                    end-date))
-                   ("end_time" . ,end-time)
-                   ("location" . ,(when (not (string-empty-p location)) location))))
-         (request-str (format "(CreateEvent (%s))"
-                              (caledonia--build-sexp-fields fields))))
-    (caledonia--send-request request-str)
-    (message "Event created: %s" summary)
-    (when (eq major-mode 'caledonia-agenda-mode)
-      (caledonia-refresh))))
+         (return-buf (current-buffer))
+         (buf (get-buffer-create caledonia-event-form-buffer)))
+    (with-current-buffer buf
+      (erase-buffer)
+      (caledonia-event-form-mode)
+      (setq-local caledonia-event-form--type 'create)
+      (setq-local caledonia-event-form--return-buffer return-buf)
+      (let ((inhibit-read-only t))
+        (caledonia-event-form--insert-field "Calendar" calendar)
+        (caledonia-event-form--insert-field "Summary")
+        (caledonia-event-form--insert-field "Start")
+        (caledonia-event-form--insert-field "End")
+        (caledonia-event-form--insert-field "Timezone")
+        (caledonia-event-form--insert-field "Location")
+        (caledonia-event-form--insert-field "Description")
+        (caledonia-event-form--insert-help))
+      ;; Position cursor on Summary field value
+      (goto-char (point-min))
+      (re-search-forward "^Summary: " nil t))
+    (switch-to-buffer-other-window buf)))
 
 (defun caledonia-edit-event ()
-  "Edit the event at point.
-Prompts for summary, start, end, timezone, and location with current values as defaults."
+  "Edit the event at point using a form buffer.
+Fill in the fields, then press C-c C-c to save or C-c C-k to cancel.
+Use C-c C-d on a date field to pick with org-read-date."
   (interactive)
   (let ((event (get-text-property (point) 'event-data)))
     (unless event
       (user-error "No event at point"))
     (let* ((id (caledonia--get-key 'id event))
-           (cur-summary (or (caledonia--get-key 'summary event) ""))
-           (cur-location (or (caledonia--get-key 'location event) ""))
-           (cur-start (caledonia--get-key 'start event))
-           (cur-end (caledonia--get-key 'end event))
-           (cur-start-tz (caledonia--get-key 'start_tz event))
+           (summary (or (caledonia--get-key 'summary event) ""))
+           (location (or (caledonia--get-key 'location event) ""))
+           (description (or (caledonia--get-key 'description event) ""))
+           (calendar (or (caledonia--get-key 'calendar event) ""))
+           (start (caledonia--get-key 'start event))
+           (end (caledonia--get-key 'end event))
+           (start-tz (or (caledonia--get-key 'start_tz event) ""))
            (is-date (caledonia--get-key 'is_date event))
-           ;; Format current values as defaults for org-read-date
-           (start-default (when cur-start
-                            (if is-date
-                                (caledonia--format-timestamp cur-start "%Y-%m-%d")
-                              (caledonia--format-timestamp cur-start "%Y-%m-%d %H:%M"))))
-           (end-default (when cur-end
-                          (if is-date
-                              (caledonia--format-timestamp cur-end "%Y-%m-%d")
-                            (caledonia--format-timestamp cur-end "%Y-%m-%d %H:%M"))))
-           ;; Prompt for fields
-           (summary (read-string (format "Summary [%s]: " cur-summary)
-                                 nil 'caledonia-summary-history cur-summary))
-           (start (caledonia--read-datetime-with-default "Start" start-default))
-           (start-date (car start))
-           (start-time (cdr start))
-           (end (when cur-end
-                  (caledonia--read-datetime-with-default "End" end-default)))
-           (end-date (when end (car end)))
-           (end-time (when end (cdr end)))
-           (timezone (read-string
-                      (format "Timezone [%s]: " (or cur-start-tz ""))
-                      nil 'caledonia-timezone-history cur-start-tz))
-           (location (read-string (format "Location [%s]: " cur-location)
-                                  nil 'caledonia-location-history cur-location))
-           ;; Build request
-           (fields `(("id" . ,id)
-                     ("summary" . ,summary)
-                     ("start_date" . ,start-date)
-                     ("start_time" . ,start-time)
-                     ("end_date" . ,end-date)
-                     ("end_time" . ,end-time)
-                     ("timezone" . ,(when (and timezone (not (string-empty-p timezone)))
-                                     timezone))
-                     ("location" . ,(when (and location (not (string-empty-p location)))
-                                     location))))
-           (request-str (format "(EditEvent (%s))" (caledonia--build-sexp-fields fields))))
-      (caledonia--send-request request-str)
-      (message "Event updated: %s" summary)
-      (when (eq major-mode 'caledonia-agenda-mode)
-        (caledonia-refresh)))))
+           (start-str (when start
+                        (if is-date
+                            (caledonia--format-timestamp start "%Y-%m-%d")
+                          (caledonia--format-timestamp start "%Y-%m-%d %H:%M"))))
+           (end-str (when end
+                      (if is-date
+                          (caledonia--format-timestamp end "%Y-%m-%d")
+                        (caledonia--format-timestamp end "%Y-%m-%d %H:%M"))))
+           (return-buf (current-buffer))
+           (buf (get-buffer-create caledonia-event-form-buffer)))
+      (with-current-buffer buf
+        (erase-buffer)
+        (caledonia-event-form-mode)
+        (setq-local caledonia-event-form--type 'edit)
+        (setq-local caledonia-event-form--id id)
+        (setq-local caledonia-event-form--return-buffer return-buf)
+        (let ((inhibit-read-only t))
+          (caledonia-event-form--insert-field "Calendar" calendar)
+          (caledonia-event-form--insert-field "Summary" summary)
+          (caledonia-event-form--insert-field "Start" start-str)
+          (caledonia-event-form--insert-field "End" end-str)
+          (caledonia-event-form--insert-field "Timezone" start-tz)
+          (caledonia-event-form--insert-field "Location" location)
+          (caledonia-event-form--insert-field "Description" description)
+          (caledonia-event-form--insert-help))
+        ;; Position cursor on Summary field value
+        (goto-char (point-min))
+        (re-search-forward "^Summary: " nil t))
+      (switch-to-buffer-other-window buf))))
 
 (defun caledonia-delete-event ()
   "Delete the event at point."
