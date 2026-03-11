@@ -32,7 +32,8 @@
       "e" 'caledonia-edit-event
       "d" 'caledonia-delete-event
       "s" 'caledonia-search
-      "q" 'quit-window))
+      "q" 'quit-window
+      "?" 'caledonia-agenda-help))
 
   (defun caledonia-evil--setup-integration ()
     "Set up Evil integration for Caledonia agenda mode."

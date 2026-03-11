@@ -380,8 +380,29 @@ DEFAULT should be \"YYYY-MM-DD HH:MM\".  Returns (date . time) cons."
     (define-key map (kbd "d") 'caledonia-delete-event)
     (define-key map (kbd "s") 'caledonia-search)
     (define-key map (kbd "q") 'quit-window)
+    (define-key map (kbd "?") 'caledonia-agenda-help)
     map)
   "Keymap for Caledonia agenda mode.")
+
+(defvar caledonia-agenda--help-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "RET") 'caledonia-show-event)
+    (define-key map (kbd "M-RET") 'caledonia-open-event-file)
+    (define-key map (kbd "r") 'caledonia-refresh)
+    (define-key map (kbd "a") 'caledonia-add-event)
+    (define-key map (kbd "e") 'caledonia-edit-event)
+    (define-key map (kbd "d") 'caledonia-delete-event)
+    (define-key map (kbd "s") 'caledonia-search)
+    (define-key map (kbd "q") 'quit-window)
+    map)
+  "Clean keymap for which-key help display (no inherited bindings).")
+
+(defun caledonia-agenda-help ()
+  "Show available keybindings."
+  (interactive)
+  (if (fboundp 'which-key-show-keymap)
+      (which-key-show-keymap 'caledonia-agenda--help-map)
+    (describe-mode)))
 
 (define-derived-mode caledonia-agenda-mode special-mode "Caledonia-Agenda"
   "Major mode for displaying calendar events in an agenda view.")
@@ -565,11 +586,15 @@ End defaults to start + 1 hour. Location is optional."
          (end (caledonia--read-datetime-with-default "End" end-default))
          (end-date (when end (car end)))
          (end-time (when end (cdr end)))
+         (timezone (read-string "Timezone (blank for system default): "
+                               nil 'caledonia-timezone-history))
          (location (read-string "Location: " nil 'caledonia-location-history))
          (fields `(("calendar" . ,calendar)
                    ("summary" . ,summary)
                    ("start_date" . ,start-date)
                    ("start_time" . ,start-time)
+                   ("timezone" . ,(when (and timezone (not (string-empty-p timezone)))
+                                    timezone))
                    ("end_date" . ,(when (and end-date (not (string= end-date start-date)))
                                     end-date))
                    ("end_time" . ,end-time)
