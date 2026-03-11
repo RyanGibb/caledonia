@@ -20,7 +20,8 @@ let run ~stdin ~stdout ~fs calendar_dir () =
           match request with
           | ListCalendars ->
               let* names = Calendar_dir.list_calendar_names ~fs calendar_dir in
-              Ok (sexp_of_response (Ok (Calendars names)))
+              let display_names = List.map (Calendar_dir.get_display_name ~fs calendar_dir) names in
+              Ok (sexp_of_response (Ok (Calendars display_names)))
           | Refresh ->
               (* Reload events from disk *)
               mutable_events := Calendar_dir.get_events ~fs calendar_dir;
