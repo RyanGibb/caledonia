@@ -4,7 +4,7 @@
 ;;
 ;; Author: Ryan Gibb <ryan@freumh.org>
 ;; Maintainer: Ryan Gibb <ryan@freumh.org>
-;; Version: 0.4.0
+;; Version: 0.5.0
 ;; Keywords: calendar
 ;; Package-Requires: ((emacs "24.3") (evil))
 ;; URL: https://ryan.freumh.org/caledonia.html
@@ -22,60 +22,26 @@
 ;; Only load evil integration if evil is available
 (when (require 'evil nil t)
 
-  (defvar caledonia-evil-filter-map
-    (let ((map (make-sparse-keymap)))
-      (define-key map "d" 'caledonia-query-date-range)
-      (define-key map "c" 'caledonia-query-calendars)
-      (define-key map "t" 'caledonia-query-text)
-      (define-key map "i" 'caledonia-query-id)
-      (define-key map "r" 'caledonia-query-recurring)
-      (define-key map "l" 'caledonia-query-limit)
-      (define-key map "z" 'caledonia-query-timezone)
-      map)
-    "Evil mode keymap for filter commands in Caledonia mode.")
-
-  (defun caledonia-evil--setup-evil-bindings ()
-    "Set up Evil keybindings for `caledonia-mode`."
-    (evil-define-key* 'normal caledonia-mode-map
+  (defun caledonia-evil--setup-bindings ()
+    "Set up Evil keybindings for `caledonia-agenda-mode`."
+    (evil-define-key* 'normal caledonia-agenda-mode-map
       (kbd "RET") 'caledonia-show-event
       (kbd "M-RET") 'caledonia-open-event-file
-      "l" 'caledonia-list
-      "s" 'caledonia-search
       "r" 'caledonia-refresh
       "a" 'caledonia-add-event
       "e" 'caledonia-edit-event
       "d" 'caledonia-delete-event
-      "A" 'caledonia-agenda
-      "q" 'quit-window
-      "f" caledonia-evil-filter-map))
-
-  (defun caledonia-evil--setup-agenda-evil-bindings ()
-    "Set up Evil keybindings for `caledonia-agenda-mode`."
-    (evil-define-key* 'normal caledonia-agenda-mode-map
-      (kbd "RET") 'caledonia-agenda-show-event
-      (kbd "M-RET") 'caledonia-agenda-open-event-file
-      "r" 'caledonia-agenda-refresh
-      "a" 'caledonia-add-event
-      "d" 'caledonia-agenda-delete-event
-      "l" 'caledonia-list
+      "s" 'caledonia-search
       "q" 'quit-window))
 
-  (defun caledonia-evil--setup-evil-integration ()
-    "Set up Evil integration for Caledonia mode."
-    (when (bound-and-true-p evil-mode)
-      (evil-make-overriding-map caledonia-mode-map 'normal)
-      (evil-normalize-keymaps)
-      (caledonia-evil--setup-evil-bindings)))
-
-  (defun caledonia-evil--setup-agenda-evil-integration ()
+  (defun caledonia-evil--setup-integration ()
     "Set up Evil integration for Caledonia agenda mode."
     (when (bound-and-true-p evil-mode)
       (evil-make-overriding-map caledonia-agenda-mode-map 'normal)
       (evil-normalize-keymaps)
-      (caledonia-evil--setup-agenda-evil-bindings)))
+      (caledonia-evil--setup-bindings)))
 
-  (add-hook 'caledonia-mode-hook 'caledonia-evil--setup-evil-integration)
-  (add-hook 'caledonia-agenda-mode-hook 'caledonia-evil--setup-agenda-evil-integration))
+  (add-hook 'caledonia-agenda-mode-hook 'caledonia-evil--setup-integration))
 
 (provide 'caledonia-evil)
 ;;; caledonia-evil.el ends here
