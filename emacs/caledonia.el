@@ -544,17 +544,17 @@ End defaults to start + 1 hour. Location is optional."
          (start (caledonia--read-datetime "Start"))
          (start-date (car start))
          (start-time (cdr start))
-         ;; Default end: start + 1h if timed
-         (end-default (when start-time
-                        (let* ((parsed (parse-time-string
-                                        (format "%s %s" start-date start-time)))
-                               (time (apply #'encode-time
-                                            (append (cl-subseq parsed 0 6)
-                                                    (list nil -1))))
-                               (end-time (time-add time 3600)))
-                          (format-time-string "%Y-%m-%d %H:%M" end-time))))
-         (end (when start-time
-                (caledonia--read-datetime-with-default "End" end-default)))
+         ;; Default end: start + 1h if timed, same day if all-day
+         (end-default (if start-time
+                         (let* ((parsed (parse-time-string
+                                         (format "%s %s" start-date start-time)))
+                                (time (apply #'encode-time
+                                             (append (cl-subseq parsed 0 6)
+                                                     (list nil -1))))
+                                (end-time (time-add time 3600)))
+                           (format-time-string "%Y-%m-%d %H:%M" end-time))
+                       start-date))
+         (end (caledonia--read-datetime-with-default "End" end-default))
          (end-date (when end (car end)))
          (end-time (when end (cdr end)))
          (location (read-string "Location: " nil 'caledonia-location-history))
