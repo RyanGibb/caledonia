@@ -870,9 +870,10 @@ let sexp_of_t event =
       | None -> None);
       (match get_alarms event with
       | [] -> None
-      | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms alarms) ]));
+      | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms_short alarms) ]));
       (if is_date event then Some (List [ Atom "is_date"; Atom "true" ])
        else None);
+      Some (List [ Atom "start_utc"; Atom (Ptime.to_rfc3339 start) ]);
       (match get_recurrence event with
       | Some _ -> Some (List [ Atom "recurring"; Atom "true" ])
       | None -> None);
@@ -943,6 +944,109 @@ let query events ?filter ~from ~to_ ?comparator ?limit () =
     match comparator with None -> events | Some c -> List.sort c events
   in
   match limit with Some n when n > 0 -> take n events | _ -> events
+
+let utc_to_local_ptime tz occurrence =
+  let ts = Timedesc.Utils.timestamp_of_ptime occurrence in
+  let dt = Timedesc.of_timestamp_exn ~tz_of_date_time:tz ts in
+  let date = Timedesc.date dt in
+  let time = Timedesc.time dt in
+  let dt_utc = Timedesc.of_date_and_time_exn ~tz:Timedesc.Time_zone.utc date time in
+  Date.timedesc_to_ptime dt_utc
+
+let make_timestamp_matching_dtstart dtstart occurrence =
+  match dtstart with
+  | `Datetime (`Utc _) -> `Utc occurrence
+  | `Datetime (`Local _) -> `Local occurrence
+  | `Datetime (`With_tzid (_, (params, tzid))) ->
+      let tz = match Timedesc.Time_zone.make tzid with
+        | Some tz -> tz
+        | None -> Timedesc.Time_zone.utc
+      in
+      `With_tzid (utc_to_local_ptime tz occurrence, (params, tzid))
+  | `Date _ -> `Utc occurrence
+
+let make_exdate_value (dtstart : Icalendar.Params.t * Icalendar.date_or_datetime) (occurrence : Ptime.t) =
+  match snd dtstart with
+  | `Date _ ->
+      let date = Ptime.to_date occurrence in
+      `Exdate (Icalendar.Params.empty, `Dates [ date ])
+  | `Datetime _ ->
+      let ts = make_timestamp_matching_dtstart (snd dtstart) occurrence in
+      `Exdate (Icalendar.Params.empty, `Datetimes [ ts ])
+
+let delete_occurrence t (occurrence : Ptime.t) =
+  let new_ts = make_timestamp_matching_dtstart (snd t.event.dtstart) occurrence in
+  (* Merge into existing EXDATE if present, otherwise create new one *)
+  let found = ref false in
+  let props = List.map (function
+    | `Exdate (params, `Datetimes existing) when not !found ->
+        found := true;
+        `Exdate (params, `Datetimes (existing @ [ new_ts ]))
+    | `Exdate (params, `Dates existing) when not !found ->
+        found := true;
+        `Exdate (params, `Dates (existing @ [ Ptime.to_date occurrence ]))
+    | other -> other
+  ) t.event.props in
+  let props =
+    if !found then props
+    else make_exdate_value t.event.dtstart occurrence :: props
+  in
+  let event = { t.event with props } in
+  { t with event }
+
+let make_recurrence_id (dtstart : Icalendar.Params.t * Icalendar.date_or_datetime) (occurrence : Ptime.t) =
+  match snd dtstart with
+  | `Date _ ->
+      `Recur_id (Icalendar.Params.empty, `Date (Ptime.to_date occurrence))
+  | `Datetime _ ->
+      let ts = make_timestamp_matching_dtstart (snd dtstart) occurrence in
+      `Recur_id (Icalendar.Params.empty, `Datetime ts)
+
+let create_occurrence_override t (occurrence : Ptime.t) ?summary ?start ?end_ ?location ?description ?alarms () =
+  let now = Ptime_clock.now () in
+  let recurrence_id = make_recurrence_id t.event.dtstart occurrence in
+  let dtstart = match start with None -> t.event.dtstart | Some s -> s in
+  let dtend_or_duration =
+    match end_ with None -> t.event.dtend_or_duration | Some _ -> end_
+  in
+  let props = [ recurrence_id ] in
+  let props =
+    match summary with
+    | Some s -> `Summary (Icalendar.Params.empty, s) :: props
+    | None ->
+        (match List.find_opt (function `Summary _ -> true | _ -> false) t.event.props with
+        | Some p -> p :: props
+        | None -> props)
+  in
+  let props =
+    match location with
+    | Some l -> `Location (Icalendar.Params.empty, l) :: props
+    | None ->
+        (match List.find_opt (function `Location _ -> true | _ -> false) t.event.props with
+        | Some p -> p :: props
+        | None -> props)
+  in
+  let props =
+    match description with
+    | Some d -> `Description (Icalendar.Params.empty, d) :: props
+    | None ->
+        (match List.find_opt (function `Description _ -> true | _ -> false) t.event.props with
+        | Some p -> p :: props
+        | None -> props)
+  in
+  let alarms = match alarms with Some a -> a | None -> t.event.alarms in
+  let override_event : Icalendar.event =
+    {
+      dtstamp = (Icalendar.Params.empty, now);
+      uid = t.event.uid;
+      dtstart;
+      dtend_or_duration;
+      rrule = None;
+      props;
+      alarms;
+    }
+  in
+  override_event
 
 type alarm_fire = {
   fire_time : Ptime.t;

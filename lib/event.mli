@@ -165,6 +165,26 @@ val query :
 (** Find events with expansion of recurring events. Returns Ok with the list of
     events, or Error with a message. *)
 
+(** {2 Occurrence operations} *)
+
+val delete_occurrence : t -> Ptime.t -> t
+(** Add an EXDATE to a recurring event, excluding one occurrence. *)
+
+val create_occurrence_override :
+  t ->
+  Ptime.t ->
+  ?summary:string ->
+  ?start:Icalendar.params * Icalendar.date_or_datetime ->
+  ?end_:
+    [ `Duration of Icalendar.params * Ptime.Span.t
+    | `Dtend of Icalendar.params * Icalendar.date_or_datetime ] ->
+  ?location:string ->
+  ?description:string ->
+  ?alarms:Icalendar.alarm list ->
+  unit ->
+  Icalendar.event
+(** Create a VEVENT with RECURRENCE-ID to override a single occurrence. *)
+
 (** {2 Alarm fire times} *)
 
 type alarm_fire = {

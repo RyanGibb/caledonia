@@ -122,21 +122,47 @@ let run ~stdin ~stdout ~fs calendar_dir () =
                   | [] -> Ok None
                   | strs -> let* a = Event_args.parse_alarms strs in Ok (Some a)
               in
-              let* modified = Event.edit ?summary:req.summary ?start ?end_
-                  ?location:req.location ?description:req.description
-                  ?recurrence ?alarms:alarms_param event in
-              let* events = Calendar_dir.edit_event ~fs calendar_dir events modified in
-              mutable_events := Ok events;
-              Ok (sexp_of_response (Ok (Events [modified])))
-          | DeleteEvent event_id ->
+              (match req.occurrence_start with
+              | None ->
+                  let* modified = Event.edit ?summary:req.summary ?start ?end_
+                      ?location:req.location ?description:req.description
+                      ?recurrence ?alarms:alarms_param event in
+                  let* events = Calendar_dir.edit_event ~fs calendar_dir events modified in
+                  mutable_events := Ok events;
+                  Ok (sexp_of_response (Ok (Events [modified])))
+              | Some start_str ->
+                  let* occurrence_start =
+                    match Ptime.of_rfc3339 start_str with
+                    | Ok (t, _, _) -> Ok t
+                    | Error _ -> Error (`Msg ("Invalid RFC 3339 timestamp: " ^ start_str))
+                  in
+                  let override_event = Event.create_occurrence_override event occurrence_start
+                      ?summary:req.summary ?start ?end_
+                      ?location:req.location ?description:req.description
+                      ?alarms:alarms_param () in
+                  let* events = Calendar_dir.add_occurrence_override ~fs calendar_dir events event override_event in
+                  mutable_events := Ok events;
+                  Ok (sexp_of_response (Ok Empty)))
+          | DeleteEvent req ->
               let* events = !mutable_events in
               let* event =
-                match List.filter (fun e -> Event.get_id e = event_id) events with
+                match List.filter (fun e -> Event.get_id e = req.id) events with
                 | [ e ] -> Ok e
-                | [] -> Error (`Msg ("No event found for id " ^ event_id))
-                | _ -> Error (`Msg ("Multiple events found for id " ^ event_id))
+                | [] -> Error (`Msg ("No event found for id " ^ req.id))
+                | _ -> Error (`Msg ("Multiple events found for id " ^ req.id))
               in
-              let* events = Calendar_dir.delete_event ~fs calendar_dir events event in
+              let* events =
+                match req.occurrence_start with
+                | None ->
+                    Calendar_dir.delete_event ~fs calendar_dir events event
+                | Some start_str ->
+                    let* occurrence_start =
+                      match Ptime.of_rfc3339 start_str with
+                      | Ok (t, _, _) -> Ok t
+                      | Error _ -> Error (`Msg ("Invalid RFC 3339 timestamp: " ^ start_str))
+                    in
+                    Calendar_dir.delete_occurrence ~fs calendar_dir events event occurrence_start
+              in
               mutable_events := Ok events;
               Ok (sexp_of_response (Ok Empty))
         with

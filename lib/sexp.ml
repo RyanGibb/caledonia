@@ -75,6 +75,13 @@ type edit_event_request = {
   recurrence : string option; [@sexp.option]
   alarms : string list; [@default []]
   no_alarms : bool; [@default false]
+  occurrence_start : string option; [@sexp.option]
+}
+[@@deriving sexp]
+
+type delete_event_request = {
+  id : string;
+  occurrence_start : string option; [@sexp.option]
 }
 [@@deriving sexp]
 
@@ -84,7 +91,7 @@ type request =
   | Refresh
   | CreateEvent of create_event_request
   | EditEvent of edit_event_request
-  | DeleteEvent of string
+  | DeleteEvent of delete_event_request
 [@@deriving sexp]
 
 type response_payload =

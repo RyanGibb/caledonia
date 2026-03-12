@@ -106,4 +106,22 @@ val delete_event :
   (Event.t list, [> `Msg of string ]) result
 (** Delete an event from the calendar directory (backward compatibility). *)
 
+val delete_occurrence :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  Event.t list ->
+  Event.t ->
+  Ptime.t ->
+  (Event.t list, [> `Msg of string ]) result
+(** Delete a single occurrence of a recurring event by adding EXDATE. *)
+
+val add_occurrence_override :
+  fs:Eio.Fs.dir_ty Eio.Path.t ->
+  t ->
+  Event.t list ->
+  Event.t ->
+  Icalendar.event ->
+  (Event.t list, [> `Msg of string ]) result
+(** Add a RECURRENCE-ID override VEVENT to an existing recurring event's .ics file. *)
+
 val get_path : t -> string

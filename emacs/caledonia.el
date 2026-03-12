@@ -591,6 +591,9 @@ Uses current time for relative dates."
 (defvar-local caledonia-event-form--return-buffer nil
   "Buffer to return to after form submission.")
 
+(defvar-local caledonia-event-form--occurrence-start nil
+  "When editing a single occurrence, the RFC 3339 start_utc of that occurrence.")
+
 (defvar caledonia-event-form--date-fields '("Start" "End")
   "Field names that should use org-read-date.")
 
@@ -843,6 +846,7 @@ Returns (date . time) where time may be nil."
                (message "Event created: %s" summary)))
             ('edit
              (let* ((id caledonia-event-form--id)
+                    (occurrence-start caledonia-event-form--occurrence-start)
                     (fields `(("id" . ,id)
                               ("summary" . ,summary)
                               ("start_date" . ,start-date)
@@ -854,7 +858,8 @@ Returns (date . time) where time may be nil."
                               ("recurrence" . ,recurrence)
                               ("alarms" . ,alarms)
                               ("location" . ,location)
-                              ("description" . ,description)))
+                              ("description" . ,description)
+                              ("occurrence_start" . ,occurrence-start)))
                     (request-str (format "(EditEvent (%s))"
                                          (caledonia--build-sexp-fields fields))))
                (caledonia--send-request request-str)
@@ -912,7 +917,8 @@ Use C-c C-d on a date field to pick with org-read-date."
 (defun caledonia-edit-event ()
   "Edit the event at point using a form buffer.
 Fill in the fields, then press C-c C-c to save or C-c C-k to cancel.
-Use C-c C-d on a date field to pick with org-read-date."
+Use C-c C-d on a date field to pick with org-read-date.
+If the event is recurring, prompt whether to edit this occurrence or all."
   (interactive)
   (let ((event (get-text-property (point) 'event-data)))
     (unless event
@@ -928,7 +934,15 @@ Use C-c C-d on a date field to pick with org-read-date."
            (end-tz (or (caledonia--get-key 'end_tz event) ""))
            (alarms (or (caledonia--get-key 'alarms event) ""))
            (recurring (caledonia--get-key 'recurring event))
+           (start-utc (caledonia--get-key 'start_utc event))
            (is-date (caledonia--get-key 'is_date event))
+           (occurrence-start
+            (when recurring
+              (let ((scope (completing-read
+                            (format "Edit '%s': " summary)
+                            '("This event" "All events in series")
+                            nil t nil nil "This event")))
+                (when (string= scope "This event") start-utc))))
            (start-str (when start
                         (if is-date
                             (caledonia--format-timestamp start "%Y-%m-%d")
@@ -944,6 +958,7 @@ Use C-c C-d on a date field to pick with org-read-date."
         (caledonia-event-form-mode)
         (setq-local caledonia-event-form--type 'edit)
         (setq-local caledonia-event-form--id id)
+        (setq-local caledonia-event-form--occurrence-start occurrence-start)
         (setq-local caledonia-event-form--return-buffer return-buf)
         (let ((inhibit-read-only t))
           (caledonia-event-form--insert-field "Calendar" calendar)
@@ -952,7 +967,8 @@ Use C-c C-d on a date field to pick with org-read-date."
           (caledonia-event-form--insert-field "End" end-str)
           (caledonia-event-form--insert-field "Timezone" start-tz)
           (caledonia-event-form--insert-field "End Timezone" end-tz)
-          (caledonia-event-form--insert-field "Recurrence")
+          (unless occurrence-start
+            (caledonia-event-form--insert-field "Recurrence"))
           (caledonia-event-form--insert-field "Alarms" alarms)
           (caledonia-event-form--insert-field "Location" location)
           (caledonia-event-form--insert-field "Description" description)
@@ -963,18 +979,34 @@ Use C-c C-d on a date field to pick with org-read-date."
       (switch-to-buffer-other-window buf))))
 
 (defun caledonia-delete-event ()
-  "Delete the event at point."
+  "Delete the event at point.
+If the event is recurring, prompt whether to delete this occurrence or all."
   (interactive)
   (let ((event (get-text-property (point) 'event-data)))
     (unless event
       (user-error "No event at point"))
-    (let ((id (caledonia--get-key 'id event))
-          (summary (or (caledonia--get-key 'summary event) "(no summary)")))
-      (when (y-or-n-p (format "Delete event '%s'? " summary))
-        (caledonia--send-request (format "(DeleteEvent %S)" id))
-        (message "Event deleted: %s" summary)
-        (when (eq major-mode 'caledonia-agenda-mode)
-          (caledonia-refresh))))))
+    (let* ((id (caledonia--get-key 'id event))
+           (summary (or (caledonia--get-key 'summary event) "(no summary)"))
+           (recurring (caledonia--get-key 'recurring event))
+           (start-utc (caledonia--get-key 'start_utc event))
+           (scope (if recurring
+                      (completing-read
+                       (format "Delete '%s': " summary)
+                       '("This event" "All events in series")
+                       nil t nil nil "This event")
+                    "all")))
+      (when (y-or-n-p (format "Delete %s? "
+                               (if (string= scope "All events in series")
+                                   (format "all events in series '%s'" summary)
+                                 (format "event '%s'" summary))))
+        (let ((request-str
+               (if (and recurring (string= scope "This event") start-utc)
+                   (format "(DeleteEvent ((id %S)(occurrence_start %S)))" id start-utc)
+                 (format "(DeleteEvent ((id %S)))" id))))
+          (caledonia--send-request request-str)
+          (message "Event deleted: %s" summary)
+          (when (eq major-mode 'caledonia-agenda-mode)
+            (caledonia-refresh)))))))
 
 ;; Entry points
 

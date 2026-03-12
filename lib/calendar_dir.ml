@@ -179,10 +179,14 @@ let edit_component ~fs calendar_dir components component =
   let file = Component.get_file component in
   let existing_props, existing_components = Component.to_ical_calendar component in
   let calendar =
+    let has_recurrence_id (e : Icalendar.event) =
+      List.exists (function `Recur_id _ -> true | _ -> false) e.props
+    in
     let filtered_components =
       List.filter
         (function
-          | `Event e -> snd e.Icalendar.uid <> component_id
+          | `Event e ->
+              snd e.Icalendar.uid <> component_id || has_recurrence_id e
           | `Todo (props, _) ->
               (match List.find_opt (function `Uid (_, id) -> id = component_id | _ -> false) props with
               | Some _ -> false
@@ -261,5 +265,37 @@ let delete_event ~fs calendar_dir events event =
   match delete_component ~fs calendar_dir components (Component.of_event event) with
   | Ok comps -> Ok (List.filter_map Component.to_event comps)
   | Error e -> Error e
+
+let delete_occurrence ~fs calendar_dir events event occurrence_start =
+  let modified = Event.delete_occurrence event occurrence_start in
+  edit_event ~fs calendar_dir events modified
+
+let add_occurrence_override ~fs:(_fs : Eio.Fs.dir_ty Eio.Path.t) (_calendar_dir : t) events event override_ical_event =
+  let file = Event.get_file event in
+  let existing_props, existing_components = Event.to_ical_calendar event in
+  let calendar =
+    (existing_props, existing_components @ [ `Event override_ical_event ])
+  in
+  let content = Icalendar.to_ics ~cr:true calendar in
+  let* () =
+    try
+      Eio.Path.save ~create:(`Or_truncate 0o644) file content;
+      Ok ()
+    with Eio.Exn.Io _ as exn ->
+      Error
+        (`Msg
+           (Fmt.str "Failed to write file %s: %a\n%!" (snd file) Eio.Exn.pp exn))
+  in
+  (* Re-read event from file to pick up the override in the calendar field *)
+  let content = Eio.Path.load file in
+  match Icalendar.parse content with
+  | Ok new_calendar ->
+      let calendar_name = Event.get_calendar_name event in
+      let new_events = Event.events_of_icalendar calendar_name ~file new_calendar in
+      let event_id = Event.get_id event in
+      let filtered = List.filter (fun e -> Event.get_id e <> event_id) events in
+      Ok (new_events @ filtered)
+  | Error err ->
+      Error (`Msg ("Failed to re-parse .ics after adding override: " ^ err))
 
 let get_path t = t
