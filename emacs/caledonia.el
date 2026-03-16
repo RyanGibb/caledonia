@@ -432,14 +432,26 @@ The from-date can be nil to indicate no start date constraint."
 Shows all days between FROM-DATE and TO-DATE, including empty days.
 FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events."
   (let ((day-groups (make-hash-table :test 'equal)))
-    ;; Group events by date
+    ;; Group events by date (multi-day events appear on each day they span)
     (dolist (event events)
       (let* ((start (caledonia--get-key 'start event))
-             (parsed (caledonia--parse-iso-date start))
-             (date-key (list (nth 0 parsed) (nth 1 parsed) (nth 2 parsed))))
-        (puthash date-key
-                 (append (gethash date-key day-groups) (list event))
-                 day-groups)))
+             (end-val (caledonia--get-key 'end event))
+             (start-parsed (caledonia--parse-iso-date start))
+             (start-abs (caledonia--date-to-absolute (nth 0 start-parsed) (nth 1 start-parsed) (nth 2 start-parsed)))
+             (end-abs (if end-val
+                          (let ((end-parsed (caledonia--parse-iso-date end-val)))
+                            (caledonia--date-to-absolute (nth 0 end-parsed) (nth 1 end-parsed) (nth 2 end-parsed)))
+                        start-abs)))
+        ;; For date events, end is exclusive (e.g. Mar 16-17 means just Mar 16)
+        ;; For timed events, include the end day
+        (let ((last-abs (if (caledonia--get-key 'is_date event)
+                            (1- end-abs)
+                          end-abs)))
+          (cl-loop for abs from start-abs to (max start-abs last-abs)
+                   for date-key = (caledonia--absolute-to-date abs)
+                   do (puthash date-key
+                               (append (gethash date-key day-groups) (list event))
+                               day-groups)))))
     ;; Find date range
     (when events
       (let* ((first-event (car events))
