@@ -1051,7 +1051,7 @@ FROM-DATE and TO-DATE override defaults. With prefix arg, prompts for dates."
           (setq-local caledonia-agenda--to-date to-ymd)
           (caledonia--render-agenda events from-ymd to-ymd))
         (goto-char (point-min)))
-      (switch-to-buffer buffer))))
+      (pop-to-buffer-same-window buffer))))
 
 ;;;###autoload
 (defun caledonia-search (text)
@@ -1078,7 +1078,7 @@ FROM-DATE and TO-DATE override defaults. With prefix arg, prompts for dates."
           (setq-local caledonia-agenda--to-date to-ymd)
           (caledonia--render-agenda events from-ymd to-ymd))
         (goto-char (point-min)))
-      (switch-to-buffer buffer))))
+      (pop-to-buffer-same-window buffer))))
 
 (provide 'caledonia)
 ;;; caledonia.el ends here
