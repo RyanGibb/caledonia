@@ -33,5 +33,5 @@ depends: [
   "inotify" {>= "2.0"}
 ]
 pin-depends: [
-  ["icalendar.dev" "git+https://github.com/RyanGibb/icalendar.git#c2716756fdb549f859d250d1603374a27ac32f58"]
+  ["icalendar.dev" "git+https://github.com/RyanGibb/icalendar.git#0722a633ed8df8f5ec2fa78d29aa7a8b31687f39"]
 ]
