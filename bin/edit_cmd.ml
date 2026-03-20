@@ -31,16 +31,35 @@ let run ~component_id ~summary ~start_date ~start_time ~end_date ~end_time ~loca
         | Some e -> Ok e
         | None -> Error (`Msg "Failed to extract event from component")
       in
+      let start_date = match (start_date, start_time) with
+        | None, Some _ ->
+            let (y, m, d) = Ptime.to_date (Event.get_start e) in
+            Some (Printf.sprintf "%04d-%02d-%02d" y m d)
+        | _ -> start_date
+      in
+      let timezone = match (timezone, start_date, start_time) with
+        | None, _, Some _ -> Event.get_start_timezone e
+        | _ -> timezone
+      in
       let* start = parse_start ~start_date ~start_time ~timezone in
       let* end_ =
         let end_date =
           match (end_date, end_time) with
-          | None, Some _ -> start_date
+          | None, Some _ ->
+              let fallback = match Event.get_end e with
+                | Some end_t -> end_t
+                | None -> Event.get_start e
+              in
+              let (y, m, d) = Ptime.to_date fallback in
+              Some (Printf.sprintf "%04d-%02d-%02d" y m d)
           | _ -> end_date
         in
         let end_timezone =
           match (end_date, end_time, end_timezone) with
-          | Some _, Some _, None -> timezone
+          | _, Some _, None ->
+              (match Event.get_end_timezone e with
+               | Some _ as tz -> tz
+               | None -> timezone)
           | _ -> end_timezone
         in
         parse_end ~end_date ~end_time ~end_timezone
