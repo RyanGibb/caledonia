@@ -675,10 +675,12 @@ For the Description field, captures multiple lines up to the help text."
     (when (re-search-forward (format "^%s: " (regexp-quote name)) nil t)
       (let* ((value-start (point))
              (value-end (if (string= name "Description")
-                            ;; Capture everything until the help separator
-                            (or (and (re-search-forward "^\n" nil t)
-                                     (match-beginning 0))
-                                (point-max))
+                            ;; Capture everything until the read-only help separator
+                            (let ((pos value-start))
+                              (while (and (< pos (point-max))
+                                          (not (get-text-property pos 'read-only)))
+                                (setq pos (1+ pos)))
+                              pos)
                           (line-end-position)))
              (val (string-trim (buffer-substring-no-properties value-start value-end))))
         (unless (string-empty-p val) val)))))
