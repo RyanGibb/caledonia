@@ -29,4 +29,4 @@ let%expect_test "get all events" =
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   Printf.printf "Total events: %d\n" (List.length events);
-  [%expect {| Total events: 34 |}]
+  [%expect {| Total events: 35 |}]

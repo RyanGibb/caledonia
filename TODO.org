@@ -42,3 +42,39 @@
 ** TODO check out https://github.com/janestreet/ecaml
 * TODO support more fields for sorting and searching
 * TODO command line autocomplete of ids
+* BUG Event details and agenda show times converted to local timezone, not event timezone
+  When an event has a non-local timezone (e.g. =Asia/Kolkata=), both the
+  details view and agenda display the time converted to the system's local
+  timezone (=Europe/London=) but still label it with the event's timezone.
+  For example, an event at 19:30 =Asia/Kolkata= is shown as:
+  - Details: =2026-04-12 16:00 (Asia/Kolkata)= (should be =19:30=)
+  - Agenda: =15:00= (should be =19:30=)
+  The details view shows a different wrong time from the agenda (16:00 vs 15:00),
+  suggesting two different conversion paths are both broken.
+  Times should be displayed in the event's own timezone.
+* BUG Description newlines shown as literal =\n= in event details view
+  The Emacs details buffer displays description text with literal =\n=
+  instead of rendering actual newlines. The =\n= sequences in the
+  iCalendar DESCRIPTION field should be unescaped before display.
+* BUG Deleting occurrence of all-day recurring event writes wrong EXDATE
+  Two issues when deleting a single occurrence of a =VALUE=DATE= recurring event:
+  1. *Wrong date*: the occurrence date is being converted through UTC, so e.g.
+     April 12 midnight BST (UTC+1) becomes April 11 23:00 UTC, truncated to
+     April 11. The EXDATE ends up one day off, so the occurrence isn't actually
+     excluded and an unrelated date is silently suppressed.
+  2. *Missing VALUE=DATE*: the EXDATE is written as =EXDATE:20260411= instead of
+     =EXDATE;VALUE=DATE:20260411=. Without =VALUE=DATE=, the parser treats it as
+     a datetime, fails with =check_date_datetime=, and the whole file becomes
+     unparseable.
+* TODO =occurrence_start= should accept local times, not just RFC 3339
+  When deleting a single occurrence of a recurring event, =occurrence_start=
+  requires an RFC 3339 timestamp (e.g. =2026-04-11T17:00:00Z=). But DTSTART
+  is stored as local time with TZID (e.g. =TZID=Europe/London:20260411T180000=),
+  so you have to manually compute the UTC offset to pass the right value.
+  Getting this wrong silently produces an EXDATE that doesn't match any
+  occurrence. Should accept a bare local time (e.g. =2026-04-11T18:00:00=)
+  and use the event's TZID to interpret it.
+* TODO =list --type todo= returns nothing because of datetime bounds
+  Todos typically have no date, so they're excluded by =list='s default date range filter.
+  You have to use =search --type todo= instead, which is confusing.
+  Either =list= should skip date bounds for todos, or hint the user.

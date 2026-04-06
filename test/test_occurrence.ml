@@ -38,6 +38,41 @@ let%expect_test "sexp_of_t includes start_utc" =
     has start_utc: true
     has rfc3339 format: true |}]
 
+(* --- sexp_of_t uses event timezone for start/end --- *)
+
+let%expect_test "sexp_of_t formats times in event timezone not local" =
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  let _ = setup_fixed_date () in
+  (* Set local timezone to Europe/London to verify it's NOT used *)
+  (Date.default_timezone :=
+     fun () -> Option.get (Timedesc.Time_zone.make "Europe/London"));
+  let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
+  let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
+  let event =
+    List.find
+      (fun e -> Event.get_summary e = Some "Timezone Test Event")
+      events
+  in
+  let sexp = Event.sexp_of_t event in
+  let sexp_str = Sexplib.Sexp.to_string_hum sexp in
+  (* start should be 19:30 (Asia/Kolkata), not 14:00 (UTC) or 15:00 (BST) *)
+  Printf.printf "has start 19:30: %b\n"
+    (try ignore (Str.search_forward (Str.regexp "19:30:00") sexp_str 0); true
+     with Not_found -> false);
+  (* end should be 21:30 (Asia/Kolkata) *)
+  Printf.printf "has end 21:30: %b\n"
+    (try ignore (Str.search_forward (Str.regexp "21:30:00") sexp_str 0); true
+     with Not_found -> false);
+  (* start_tz should be Asia/Kolkata *)
+  Printf.printf "has start_tz Kolkata: %b\n"
+    (try ignore (Str.search_forward (Str.regexp "Asia/Kolkata") sexp_str 0); true
+     with Not_found -> false);
+  [%expect {|
+    has start 19:30: true
+    has end 21:30: true
+    has start_tz Kolkata: true |}]
+
 (* --- delete_occurrence adds EXDATE --- *)
 
 let%expect_test "delete_occurrence adds EXDATE to recurring event" =

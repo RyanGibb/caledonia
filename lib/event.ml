@@ -836,8 +836,14 @@ let sexp_of_t event =
   let open Sexplib.Sexp in
   let start = get_start event in
   let end_ = get_end event in
-  let format_ptime_iso p =
-    let dt = Date.ptime_to_timedesc p in
+  let resolve_tz tzid =
+    match Timedesc.Time_zone.make tzid with Some tz -> Some tz | None -> None
+  in
+  let format_ptime_iso ?tz p =
+    let dt = match tz with
+      | Some tz -> Date.ptime_to_timedesc ~tz p
+      | None -> Date.ptime_to_timedesc p
+    in
     let y = Timedesc.year dt in
     let m = Timedesc.month dt in
     let d = Timedesc.day dt in
@@ -846,20 +852,28 @@ let sexp_of_t event =
     let s = Timedesc.second dt in
     Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
   in
+  let start_tz_str = get_start_timezone event in
+  let end_tz_str = get_end_timezone event in
+  let start_tz = Option.bind start_tz_str resolve_tz in
+  let end_tz = Option.bind end_tz_str resolve_tz in
   let entries =
     [
       Some (List [ Atom "id"; Atom (get_id event) ]);
       (match get_summary event with
       | Some s -> Some (List [ Atom "summary"; Atom s ])
       | None -> None);
-      Some (List [ Atom "start"; Atom (format_ptime_iso start) ]);
-      (match get_start_timezone event with
+      Some (List [ Atom "start"; Atom (format_ptime_iso ?tz:start_tz start) ]);
+      Some (List [ Atom "start_local"; Atom (format_ptime_iso start) ]);
+      (match start_tz_str with
       | Some tz -> Some (List [ Atom "start_tz"; Atom tz ])
       | None -> None);
       (match end_ with
-      | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso e) ])
+      | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso ?tz:end_tz e) ])
       | None -> None);
-      (match get_end_timezone event with
+      (match end_ with
+      | Some e -> Some (List [ Atom "end_local"; Atom (format_ptime_iso e) ])
+      | None -> None);
+      (match end_tz_str with
       | Some tz -> Some (List [ Atom "end_tz"; Atom tz ])
       | None -> None);
       (match get_location event with

@@ -182,11 +182,14 @@
 
 (defun caledonia--format-timestamp (iso-string &optional format)
   "Format ISO-8601 time string ISO-STRING to human-readable format.
-FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified."
+FORMAT defaults to \"%Y-%m-%d %H:%M\" if not specified.
+The time string is assumed to already be in the correct timezone
+\(the server sends times pre-converted\), so we encode and format
+in UTC to avoid any local timezone conversion."
   (let* ((parsed (parse-time-string iso-string))
          (time (apply #'encode-time
-                      (append (cl-subseq parsed 0 6) (list nil -1)))))
-    (format-time-string (or format "%Y-%m-%d %H:%M") time)))
+                      (append (cl-subseq parsed 0 6) (list nil t 0)))))
+    (format-time-string (or format "%Y-%m-%d %H:%M") time t)))
 
 (defun caledonia--get-key (key event)
   "Get KEY from EVENT as a string."
@@ -406,7 +409,8 @@ The from-date can be nil to indicate no start date constraint."
   "End date as (year month day) for the agenda range.")
 
 (defun caledonia--parse-iso-date (iso-string)
-  "Parse ISO-STRING and return (year month day hour minute)."
+  "Parse ISO-STRING and return (year month day hour minute).
+Extracts components directly without timezone conversion."
   (let ((parsed (parse-time-string iso-string)))
     (list (nth 5 parsed) (nth 4 parsed) (nth 3 parsed)
           (or (nth 2 parsed) 0) (or (nth 1 parsed) 0))))
@@ -433,9 +437,12 @@ Shows all days between FROM-DATE and TO-DATE, including empty days.
 FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events."
   (let ((day-groups (make-hash-table :test 'equal)))
     ;; Group events by date (multi-day events appear on each day they span)
+    ;; Use local times for date grouping so events appear on the correct local day
     (dolist (event events)
-      (let* ((start (caledonia--get-key 'start event))
-             (end-val (caledonia--get-key 'end event))
+      (let* ((start (or (caledonia--get-key 'start_local event)
+                        (caledonia--get-key 'start event)))
+             (end-val (or (caledonia--get-key 'end_local event)
+                          (caledonia--get-key 'end event)))
              (start-parsed (caledonia--parse-iso-date start))
              (start-abs (caledonia--date-to-absolute (nth 0 start-parsed) (nth 1 start-parsed) (nth 2 start-parsed)))
              (end-abs (if end-val
@@ -456,8 +463,10 @@ FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events
     (when events
       (let* ((first-event (car events))
              (last-event (car (last events)))
-             (first-parsed (caledonia--parse-iso-date (caledonia--get-key 'start first-event)))
-             (last-parsed (caledonia--parse-iso-date (caledonia--get-key 'start last-event)))
+             (first-parsed (caledonia--parse-iso-date (or (caledonia--get-key 'start_local first-event)
+                                                           (caledonia--get-key 'start first-event))))
+             (last-parsed (caledonia--parse-iso-date (or (caledonia--get-key 'start_local last-event)
+                                                         (caledonia--get-key 'start last-event))))
              (range-start (or from-date (list (nth 0 first-parsed) (nth 1 first-parsed) (nth 2 first-parsed))))
              (range-end (or to-date (list (nth 0 last-parsed) (nth 1 last-parsed) (nth 2 last-parsed))))
              (start-abs (caledonia--date-to-absolute (nth 0 range-start) (nth 1 range-start) (nth 2 range-start)))
@@ -482,10 +491,14 @@ FROM-DATE and TO-DATE are (year month day) lists.  When nil, derived from events
                                  (cond
                                   ((and a-date (not b-date)) t)
                                   ((and (not a-date) b-date) nil)
-                                  (t (string< (or (caledonia--get-key 'start a) "")
-                                              (or (caledonia--get-key 'start b) ""))))))))
-          (let* ((start (caledonia--get-key 'start event))
-                 (end-val (caledonia--get-key 'end event))
+                                  (t (string< (or (caledonia--get-key 'start_local a)
+                                                  (caledonia--get-key 'start a) "")
+                                              (or (caledonia--get-key 'start_local b)
+                                                  (caledonia--get-key 'start b) ""))))))))
+          (let* ((start (or (caledonia--get-key 'start_local event)
+                            (caledonia--get-key 'start event)))
+                 (end-val (or (caledonia--get-key 'end_local event)
+                              (caledonia--get-key 'end event)))
                  (summary (or (caledonia--get-key 'summary event) "(no summary)"))
                  (calendar (or (caledonia--get-key 'calendar event) ""))
                  (location (caledonia--get-key 'location event))
