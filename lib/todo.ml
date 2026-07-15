@@ -21,9 +21,8 @@ let sexp_of_t t =
     Sexplib.Sexp.Atom t.calendar_name;
   ]
 
-let generate_uuid () =
-  let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
-  Uuidm.to_string uuid
+let uuid_gen = lazy (Uuidm.v4_gen (Random.State.make_self_init ()))
+let generate_uuid () = Uuidm.to_string (Lazy.force uuid_gen ())
 
 let default_prodid = `Prodid (Params.empty, "-//Freumh//Caledonia//EN")
 
