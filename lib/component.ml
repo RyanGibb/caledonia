@@ -153,18 +153,18 @@ let not_filter f comp = not (f comp)
 (* Formatting *)
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
-let format_component ?(format = `Text) ?(tz = !Date.default_timezone) comp =
-  let tz_val = tz () in
+let format_component ?(format = `Text) ?tz comp =
+  let tz_val = match tz with Some tz -> tz | None -> Date.local_timezone () in
   match comp with
   | Event e -> Event.format_event ~format ~tz:tz_val e
   | Todo t -> Todo.format_todo ~format ~tz:tz_val t
   | Journal j -> Journal.format_journal ~format ~tz:tz_val j
 
-let format_components ?(format = `Text) ?(tz = !Date.default_timezone) ?get_color comps =
+let format_components ?(format = `Text) ?tz ?get_color comps =
   let events = List.filter_map to_event comps in
   let todos = List.filter_map to_todo comps in
   let journals = List.filter_map to_journal comps in
-  let tz_val = tz () in
+  let tz_val = match tz with Some tz -> tz | None -> Date.local_timezone () in
   let event_str = Event.format_events ~format ~tz:tz_val ?get_color events in
   let todo_str = Todo.format_todos ~format ~tz:tz_val ?get_color todos in
   let journal_str = Journal.format_journals ~format ~tz:tz_val ?get_color journals in

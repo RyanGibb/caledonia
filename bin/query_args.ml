@@ -227,7 +227,7 @@ let parse_timezone ~timezone =
       match Timedesc.Time_zone.make tzid with
       | Some tz -> tz
       | None -> failwith ("Invalid timezone: " ^ tzid))
-  | None -> !Date.default_timezone ()
+  | None -> Date.local_timezone ()
 
 let date_format_manpage_entries =
   [

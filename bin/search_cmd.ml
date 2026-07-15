@@ -37,7 +37,7 @@ let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
               let* d = Date.parse_date s `To in
               Ok (Some d)
         in
-        let max_date = Date.add_years (!Date.get_today ()) 75 in
+        let max_date = Date.add_years (Date.get_today ()) 75 in
         match (from, to_) with
         | Some f, Some t -> Ok (Some f, Date.to_end_of_day t)
         | Some f, None -> Ok (Some f, Date.to_end_of_day max_date)
@@ -108,7 +108,7 @@ let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
       | Some cal_dir_name -> Calendar_dir.get_color ~fs calendar_dir cal_dir_name
       | None -> None
     in
-    print_endline (Component.format_components ~tz:(fun () -> tz) ~format ~get_color components));
+    print_endline (Component.format_components ~tz ~format ~get_color components));
   Ok ()
 
 let query_text_arg =

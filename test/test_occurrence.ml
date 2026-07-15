@@ -2,10 +2,6 @@ open Caledonia_lib
 
 let fixed_date = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((0, 0, 0), 0))
 
-let setup_fixed_date () =
-  (Date.get_today := fun ?tz:_ () -> fixed_date);
-  fixed_date
-
 let calendar_dir_path = Filename.concat (Sys.getcwd ()) "calendar"
 
 let ptime_of ymd hms =
@@ -16,7 +12,6 @@ let ptime_of ymd hms =
 let%expect_test "sexp_of_t includes start_utc" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   let event =
@@ -43,10 +38,6 @@ let%expect_test "sexp_of_t includes start_utc" =
 let%expect_test "sexp_of_t formats times in event timezone not local" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
-  (* Set local timezone to Europe/London to verify it's NOT used *)
-  (Date.default_timezone :=
-     fun () -> Option.get (Timedesc.Time_zone.make "Europe/London"));
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   let event =
@@ -78,7 +69,6 @@ let%expect_test "sexp_of_t formats times in event timezone not local" =
 let%expect_test "delete_occurrence adds EXDATE to recurring event" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (ptime_of (2025, 3, 1) (0, 0, 0)) in
   let to_ = ptime_of (2025, 5, 31) (23, 59, 59) in
@@ -123,7 +113,6 @@ let%expect_test "delete_occurrence adds EXDATE to recurring event" =
 let%expect_test "delete_occurrence with specific known timestamp" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (ptime_of (2025, 3, 1) (0, 0, 0)) in
   let to_ = ptime_of (2025, 5, 31) (23, 59, 59) in
@@ -161,7 +150,6 @@ let%expect_test "delete_occurrence with specific known timestamp" =
 let%expect_test "create_occurrence_override has correct structure" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   let weekly =
@@ -210,7 +198,6 @@ let%expect_test "create_occurrence_override has correct structure" =
 let%expect_test "create_occurrence_override inherits unmodified props" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let events = Result.get_ok @@ Calendar_dir.get_events ~fs calendar_dir in
   let weekly =
@@ -238,7 +225,6 @@ let%expect_test "create_occurrence_override inherits unmodified props" =
 let%expect_test "add_occurrence_override preserves recurring series" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   (* Set up a temp calendar dir with a recurring event *)
   let tmp_dir = Filename.temp_dir "caledonia_test" "" in
   let cal_name = "test_cal" in
@@ -306,7 +292,6 @@ let%expect_test "add_occurrence_override preserves recurring series" =
 let%expect_test "two consecutive delete_occurrences with TZID" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let tmp_dir = Filename.temp_dir "caledonia_test" "" in
   let cal_name = "test_cal" in
   let cal_path = Filename.concat tmp_dir cal_name in
@@ -378,7 +363,6 @@ let%expect_test "two consecutive delete_occurrences with TZID" =
 let%expect_test "delete_occurrence works with TZID dtstart" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let tmp_dir = Filename.temp_dir "caledonia_test" "" in
   let cal_name = "test_cal" in
   let cal_path = Filename.concat tmp_dir cal_name in
@@ -438,7 +422,6 @@ let%expect_test "delete_occurrence works with TZID dtstart" =
 let%expect_test "delete_occurrence preserves existing RECURRENCE-ID overrides" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   (* Set up a temp calendar dir with a recurring event + override *)
   let tmp_dir = Filename.temp_dir "caledonia_test" "" in
   let cal_name = "test_cal" in
@@ -509,7 +492,6 @@ let%expect_test "delete_occurrence preserves existing RECURRENCE-ID overrides" =
 let%expect_test "alarm sexp output uses short parseable format" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let components = Result.get_ok @@ Calendar_dir.get_calendar_components ~fs calendar_dir "alarm" in
   let events = List.filter_map Component.to_event components in

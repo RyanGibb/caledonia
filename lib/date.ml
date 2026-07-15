@@ -1,10 +1,9 @@
 open Result
 
-let default_timezone =
-  ref (fun () ->
-      match Timedesc.Time_zone.local () with
-      | Some tz -> tz
-      | None -> Timedesc.Time_zone.utc)
+let local_timezone () =
+  match Timedesc.Time_zone.local () with
+  | Some tz -> tz
+  | None -> Timedesc.Time_zone.utc
 
 let timedesc_to_ptime dt =
   match
@@ -13,19 +12,19 @@ let timedesc_to_ptime dt =
   | Some t -> t
   | None -> failwith "Invalid date conversion from Timedesc to Ptime"
 
-let ptime_to_timedesc ?(tz = !default_timezone ()) ptime =
+let ptime_to_timedesc ?(tz = local_timezone ()) ptime =
   let ts = Timedesc.Utils.timestamp_of_ptime ptime in
   match Timedesc.of_timestamp ~tz_of_date_time:tz ts with
   | Some dt -> dt
   | None -> failwith "Invalid date conversion from Ptime to Timedesc"
 
-let get_today =
-  ref (fun ?(tz = !default_timezone ()) () ->
-      let now = Timedesc.now ~tz_of_date_time:tz () in
-      let date = Timedesc.date now in
-      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
-      let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
-      timedesc_to_ptime dt)
+let get_today ?(tz = local_timezone ()) ?(now = Ptime_clock.now ()) () =
+  let ts = Timedesc.Utils.timestamp_of_ptime now in
+  let dt = Timedesc.of_timestamp_exn ~tz_of_date_time:tz ts in
+  let date = Timedesc.date dt in
+  let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
+  let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
+  timedesc_to_ptime dt
 
 (* Convert a midnight timestamp to end-of-day (23:59:59) *)
 let to_end_of_day date =
@@ -96,19 +95,19 @@ let get_start_of_week date =
   in
   timedesc_to_ptime monday_with_midnight
 
-let get_start_of_current_week ?(tz = !default_timezone ()) () =
-  get_start_of_week (!get_today ~tz ())
+let get_start_of_current_week ?tz ?now () =
+  get_start_of_week (get_today ?tz ?now ())
 
-let get_start_of_next_week ?(tz = !default_timezone ()) () =
-  add_days (get_start_of_current_week ~tz ()) 7
+let get_start_of_next_week ?tz ?now () =
+  add_days (get_start_of_current_week ?tz ?now ()) 7
 
 let get_end_of_week date = add_days (get_start_of_week date) 6
 
-let get_end_of_current_week ?(tz = !default_timezone ()) () =
-  get_end_of_week (!get_today ~tz ())
+let get_end_of_current_week ?tz ?now () =
+  get_end_of_week (get_today ?tz ?now ())
 
-let get_end_of_next_week ?(tz = !default_timezone ()) () =
-  get_end_of_week (get_start_of_next_week ~tz ())
+let get_end_of_next_week ?tz ?now () =
+  get_end_of_week (get_start_of_next_week ?tz ?now ())
 
 let get_start_of_month date =
   let dt = ptime_to_timedesc date in
@@ -123,11 +122,11 @@ let get_start_of_month date =
       timedesc_to_ptime first_of_month
   | Error _ -> failwith "Invalid date for start of month"
 
-let get_start_of_current_month ?(tz = !default_timezone ()) () =
-  get_start_of_month (!get_today ~tz ())
+let get_start_of_current_month ?tz ?now () =
+  get_start_of_month (get_today ?tz ?now ())
 
-let get_start_of_next_month ?(tz = !default_timezone ()) () =
-  add_months (get_start_of_current_month ~tz ()) 1
+let get_start_of_next_month ?tz ?now () =
+  add_months (get_start_of_current_month ?tz ?now ()) 1
 
 let get_end_of_month date =
   let dt = ptime_to_timedesc date in
@@ -159,11 +158,11 @@ let get_end_of_month date =
       | None -> failwith "Invalid timestamp for end of month")
   | Error _ -> failwith "Invalid date for end of month"
 
-let get_end_of_current_month ?(tz = !default_timezone ()) () =
-  get_end_of_month (!get_today ~tz ())
+let get_end_of_current_month ?tz ?now () =
+  get_end_of_month (get_today ?tz ?now ())
 
-let get_end_of_next_month ?(tz = !default_timezone ()) () =
-  get_end_of_month (get_start_of_next_month ~tz ())
+let get_end_of_next_month ?tz ?now () =
+  get_end_of_month (get_start_of_next_month ?tz ?now ())
 
 let get_start_of_year date =
   let dt = ptime_to_timedesc date in
@@ -177,11 +176,11 @@ let get_start_of_year date =
       timedesc_to_ptime first_of_year
   | Error _ -> failwith "Invalid date for start of year"
 
-let get_start_of_current_year ?(tz = !default_timezone ()) () =
-  get_start_of_year (!get_today ~tz ())
+let get_start_of_current_year ?tz ?now () =
+  get_start_of_year (get_today ?tz ?now ())
 
-let get_start_of_next_year ?(tz = !default_timezone ()) () =
-  add_years (get_start_of_current_year ~tz ()) 1
+let get_start_of_next_year ?tz ?now () =
+  add_years (get_start_of_current_year ?tz ?now ()) 1
 
 let get_end_of_year date =
   let dt = ptime_to_timedesc date in
@@ -197,34 +196,33 @@ let get_end_of_year date =
       timedesc_to_ptime end_of_year
   | Error _ -> failwith "Invalid date for end of year"
 
-let get_end_of_current_year ?(tz = !default_timezone ()) () =
-  get_end_of_year (!get_today ~tz ())
+let get_end_of_current_year ?tz ?now () =
+  get_end_of_year (get_today ?tz ?now ())
 
-let get_end_of_next_year ?(tz = !default_timezone ()) () =
-  get_end_of_year (get_start_of_next_year ~tz ())
+let get_end_of_next_year ?tz ?now () =
+  get_end_of_year (get_start_of_next_year ?tz ?now ())
 
-let convert_relative_date_formats ?(tz = !default_timezone ()) ~today ~tomorrow
-    ~week ~month () =
+let convert_relative_date_formats ?tz ?now ~today ~tomorrow ~week ~month () =
   if today then
-    let today_date = !get_today ~tz () in
+    let today_date = get_today ?tz ?now () in
     (* Set the end date to end-of-day to include all events on that day *)
     let end_of_today = to_end_of_day today_date in
     Some (today_date, end_of_today)
   else if tomorrow then
-    let today = !get_today ~tz () in
+    let today = get_today ?tz ?now () in
     let tomorrow_date = add_days today 1 in
     (* Set the end date to end-of-day to include all events on that day *)
     let end_of_tomorrow = to_end_of_day tomorrow_date in
     Some (tomorrow_date, end_of_tomorrow)
   else if week then
-    let week_start = get_start_of_current_week ~tz () in
+    let week_start = get_start_of_current_week ?tz ?now () in
     let week_end_date = add_days week_start 6 in
     (* Sunday is 6 days from Monday *)
     (* Set the end date to end-of-day to include all events on Sunday *)
     let end_of_week = to_end_of_day week_end_date in
     Some (week_start, end_of_week)
   else if month then
-    let month_start = get_start_of_current_month ~tz () in
+    let month_start = get_start_of_current_month ?tz ?now () in
     let month_end = get_end_of_month month_start in
     Some (month_start, month_end)
   else None
@@ -306,7 +304,7 @@ let parse_year_month ~tz expr parameter =
             Some (Error (`Msg (Printf.sprintf "Invalid year-month: %s" expr))))
   else None
 
-let parse_relative ~tz expr parameter =
+let parse_relative ~tz ?now expr parameter =
   let regex = Re.Pcre.regexp "^([+-])(\\d+)([dwmy])$" in
   if Re.Pcre.pmatch ~rex:regex expr then
     let match_result = Re.Pcre.exec ~rex:regex expr in
@@ -315,7 +313,7 @@ let parse_relative ~tz expr parameter =
     let unit = Re.Pcre.get_substring match_result 3 in
     let multiplier = if sign = "+" then 1 else -1 in
     let value = num * multiplier in
-    let today = !get_today ~tz () in
+    let today = get_today ~tz ?now () in
     match unit with
     | "d" -> Some (Ok (add_days today value))
     | "w" -> (
@@ -336,34 +334,34 @@ let parse_relative ~tz expr parameter =
     | _ -> Some (Error (`Msg (Printf.sprintf "Invalid date unit: %s" unit)))
   else None
 
-let parse_date ?(tz = !default_timezone ()) expr parameter =
+let parse_date ?(tz = local_timezone ()) ?now expr parameter =
   match expr with
-  | "today" -> Ok (!get_today ~tz ())
-  | "tomorrow" -> Ok (add_days (!get_today ~tz ()) 1)
-  | "yesterday" -> Ok (add_days (!get_today ~tz ()) (-1))
+  | "today" -> Ok (get_today ~tz ?now ())
+  | "tomorrow" -> Ok (add_days (get_today ~tz ?now ()) 1)
+  | "yesterday" -> Ok (add_days (get_today ~tz ?now ()) (-1))
   | "this-week" -> (
       match parameter with
-      | `From -> Ok (get_start_of_current_week ~tz ())
-      | `To -> Ok (get_end_of_current_week ~tz ()))
+      | `From -> Ok (get_start_of_current_week ~tz ?now ())
+      | `To -> Ok (get_end_of_current_week ~tz ?now ()))
   | "next-week" -> (
       match parameter with
-      | `From -> Ok (get_start_of_next_week ~tz ())
-      | `To -> Ok (get_end_of_next_week ~tz ()))
+      | `From -> Ok (get_start_of_next_week ~tz ?now ())
+      | `To -> Ok (get_end_of_next_week ~tz ?now ()))
   | "this-month" -> (
       match parameter with
-      | `From -> Ok (get_start_of_current_month ~tz ())
-      | `To -> Ok (get_end_of_current_month ~tz ()))
+      | `From -> Ok (get_start_of_current_month ~tz ?now ())
+      | `To -> Ok (get_end_of_current_month ~tz ?now ()))
   | "next-month" -> (
       match parameter with
-      | `From -> Ok (get_start_of_next_month ~tz ())
-      | `To -> Ok (get_end_of_next_month ~tz ()))
+      | `From -> Ok (get_start_of_next_month ~tz ?now ())
+      | `To -> Ok (get_end_of_next_month ~tz ?now ()))
   | _ -> (
       (* Option alternative operator *)
       let ( |>? ) opt f = match opt with None -> f () | Some x -> Some x in
       ( ( ( parse_full_iso_datet ~tz expr |>? fun () ->
             parse_year_only ~tz expr parameter )
         |>? fun () -> parse_year_month ~tz expr parameter )
-      |>? fun () -> parse_relative ~tz expr parameter )
+      |>? fun () -> parse_relative ~tz ?now expr parameter )
       |> function
       | Some result -> result
       | None -> Error (`Msg (Printf.sprintf "Invalid date format: %s" expr)))
@@ -392,8 +390,8 @@ let parse_time str =
     Error
       (`Msg (Printf.sprintf "Error parsing time: %s" (Printexc.to_string e)))
 
-let parse_date_time ?(tz = !default_timezone ()) ~date ~time parameter =
-  let* date_ptime = parse_date date parameter ~tz in
+let parse_date_time ?(tz = local_timezone ()) ?now ~date ~time parameter =
+  let* date_ptime = parse_date date parameter ~tz ?now in
   let* h, min, s = parse_time time in
 
   let dt = ptime_to_timedesc ~tz date_ptime in
@@ -411,7 +409,7 @@ let parse_date_time ?(tz = !default_timezone ()) ~date ~time parameter =
 let ptime_of_ical = function
   | `Datetime (`Utc t) -> t
   | `Datetime (`Local t) ->
-      let tz = !default_timezone () in
+      let tz = local_timezone () in
       let ts = Timedesc.Utils.timestamp_of_ptime t in
       (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let dt =

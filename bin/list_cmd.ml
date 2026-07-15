@@ -43,7 +43,7 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
             Ok (Some f, one_month_later)
         | None, Some t -> Ok (None, Date.to_end_of_day t)
         | None, None ->
-            let today_date = !Date.get_today ~tz () in
+            let today_date = Date.get_today ~tz () in
             let one_month_later = Date.add_months today_date 1 in
             Ok (Some today_date, one_month_later))
   in
@@ -144,7 +144,7 @@ let run ?from_str ?to_str ~calendar:calendars ?count ~format ~today ~tomorrow
       | Some cal_dir_name -> Calendar_dir.get_color ~fs calendar_dir cal_dir_name
       | None -> None
     in
-    print_endline (Component.format_components ~format ~tz:(fun () -> tz) ~get_color components));
+    print_endline (Component.format_components ~format ~tz ~get_color components));
   Ok ()
 
 let incomplete_arg =

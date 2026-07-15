@@ -85,7 +85,7 @@ let setup_inotify calendar_dir_path =
 
 let run ~clock ~fs calendar_dir () =
   let calendar_dir_path = Calendar_dir.get_path calendar_dir in
-  let tz = !Date.default_timezone () in
+  let tz = Date.local_timezone () in
   let fired = ref Fired_set.empty in
   Printf.printf "Alarm daemon started, watching %s\n%!" calendar_dir_path;
   let fire_alarm ~trigger_str ~summary ~fire_time_str af =

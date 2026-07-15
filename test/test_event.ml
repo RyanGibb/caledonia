@@ -2,16 +2,11 @@ open Caledonia_lib
 
 let fixed_date = Option.get @@ Ptime.of_date_time ((2025, 3, 27), ((0, 0, 0), 0))
 
-let setup_fixed_date () =
-  (Date.get_today := fun ?tz:_ () -> fixed_date);
-  fixed_date
-
 let calendar_dir_path = Filename.concat (Sys.getcwd ()) "calendar"
 
 let%expect_test "query all events" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (Option.get @@ Ptime.of_date_time ((2025, 01, 01), ((0, 0, 0), 0))) in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
@@ -28,7 +23,6 @@ let%expect_test "query all events" =
 let%expect_test "recurrence expansion" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (Option.get @@ Ptime.of_date_time ((2025, 3, 1), ((0, 0, 0), 0))) in
   let to_ = Option.get @@ Ptime.of_date_time ((2025, 5, 31), ((23, 59, 59), 0)) in
@@ -44,7 +38,6 @@ let%expect_test "recurrence expansion" =
 let%expect_test "text search" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (Option.get @@ Ptime.of_date_time ((2025, 01, 01), ((0, 0, 0), 0))) in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
@@ -76,7 +69,6 @@ let%expect_test "text search" =
 let%expect_test "calendar filter" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in
-  let _ = setup_fixed_date () in
   let calendar_dir = Result.get_ok @@ Calendar_dir.create ~fs calendar_dir_path in
   let from = Some (Option.get @@ Ptime.of_date_time ((2025, 01, 01), ((0, 0, 0), 0))) in
   let to_ = Option.get @@ Ptime.of_date_time ((2026, 01, 01), ((0, 0, 0), 0)) in
