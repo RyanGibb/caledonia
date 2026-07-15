@@ -2,8 +2,8 @@ open Icalendar
 
 type t = string
 
-let get_calendar_path ~fs calendar_dir calendar_name_name =
-  Eio.Path.(fs / calendar_dir / calendar_name_name)
+let get_calendar_path ~fs calendar_dir calendar_name =
+  Eio.Path.(fs / calendar_dir / calendar_name)
 
 let ensure_dir path =
   try

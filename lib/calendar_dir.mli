@@ -1,7 +1,7 @@
-(** Functions for managing calendar directories with strings of .ics files *)
+(** Functions for managing calendar directories of .ics files *)
 
 type t
-(** A directory of strings, where each calendar_name is a subdirectory
+(** A vdir-style calendar directory, where each calendar is a subdirectory
     containing .ics files *)
 
 val create :
@@ -28,9 +28,9 @@ val find_calendar_by_display_name :
 
 val list_calendar_names :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (string list, [> `Msg of string ]) result
-(** List available strings in the calendar_dir. Returns Ok with the list of
-    string names if successful, or Error with a message if the directory cannot
-    be read. *)
+(** List available calendars in the calendar_dir. Returns Ok with the list of
+    calendar names if successful, or Error with a message if the directory
+    cannot be read. *)
 
 (** Component operations *)
 
@@ -69,18 +69,19 @@ val delete_component :
   (Component.t list, [> `Msg of string ]) result
 (** Delete a component from the calendar directory. *)
 
-(** Legacy event operations for backward compatibility *)
+(** Event-typed convenience wrappers over the component operations, used by
+    the event subcommands, the server, and the tests. *)
 
 val get_calendar_events :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
   t ->
   string ->
   (Event.t list, [> `Msg of string | `Not_found ]) result
-(** Get all event components in a calendar (backward compatibility). *)
+(** Get all event components in a calendar. *)
 
 val get_events :
   fs:Eio.Fs.dir_ty Eio.Path.t -> t -> (Event.t list, [> `Msg of string ]) result
-(** Get all events in all calendars (backward compatibility). *)
+(** Get all events in all calendars. *)
 
 val add_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -88,7 +89,7 @@ val add_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Add an event to the calendar directory (backward compatibility). *)
+(** Add an event to the calendar directory. *)
 
 val edit_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -96,7 +97,7 @@ val edit_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Edit an event in the calendar directory (backward compatibility). *)
+(** Edit an event in the calendar directory. *)
 
 val delete_event :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
@@ -104,7 +105,7 @@ val delete_event :
   Event.t list ->
   Event.t ->
   (Event.t list, [> `Msg of string ]) result
-(** Delete an event from the calendar directory (backward compatibility). *)
+(** Delete an event from the calendar directory. *)
 
 val delete_occurrence :
   fs:Eio.Fs.dir_ty Eio.Path.t ->
