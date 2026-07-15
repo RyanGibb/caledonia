@@ -17,12 +17,6 @@ val get_today :
     (useful for testing). Raises an exception if the date cannot be
     determined. *)
 
-val to_end_of_day : Ptime.t -> Ptime.t
-(** Converts a date with midnight time (00:00:00) to the same date with
-    end-of-day time (23:59:59). This is particularly useful for making "to"
-    dates in a range inclusive, addressing the common UX expectation that
-    specifying "--to 2025-04-01" would include events occurring on April 1st. *)
-
 val add_days : Ptime.t -> int -> Ptime.t
 (** Add specified number of days to a date. Raises an exception if the date
     cannot be calculated. *)
@@ -56,8 +50,9 @@ val get_start_of_next_week :
     be calculated. *)
 
 val get_end_of_week : Ptime.t -> Ptime.t
-(** Get the end of the week (Monday) for the given date. Raises an exception if
-    the date cannot be calculated. *)
+(** Get the exclusive end of the week for the given date: midnight at the
+    start of the following Monday. Raises an exception if the date cannot be
+    calculated. *)
 
 val get_end_of_current_week :
   ?tz:Timedesc.Time_zone.t -> ?now:Ptime.t -> unit -> Ptime.t
@@ -100,8 +95,9 @@ val get_end_of_next_month :
     be calculated. *)
 
 val get_end_of_month : Ptime.t -> Ptime.t
-(** Get the end of the month for the given date. Raises an exception if the date
-    cannot be calculated. *)
+(** Get the exclusive end of the month for the given date: midnight at the
+    start of the following month. Raises an exception if the date cannot be
+    calculated. *)
 
 val get_start_of_year : Ptime.t -> Ptime.t
 (** Get the start of the year (Jan 1) for the given date. Raises an exception if
@@ -120,8 +116,9 @@ val get_start_of_next_year :
     be calculated. *)
 
 val get_end_of_year : Ptime.t -> Ptime.t
-(** Get the end of the year (Dec 31, 23:59:59) for the given date. Raises an
-    exception if the date cannot be calculated. *)
+(** Get the exclusive end of the year for the given date: midnight on Jan 1 of
+    the following year. Raises an exception if the date cannot be
+    calculated. *)
 
 val get_end_of_current_year :
   ?tz:Timedesc.Time_zone.t -> ?now:Ptime.t -> unit -> Ptime.t
@@ -146,8 +143,9 @@ val convert_relative_date_formats :
   (Ptime.t * Ptime.t) option
 (** Converts relative date formats to determine from/to dates in the specified
     timezone. If no timezone is provided, uses the local timezone. Returns a
-    tuple of (start_date, end_date) or raises an exception if the dates could
-    not be determined. **)
+    tuple of (start_date, end_date), where end_date is an exclusive bound
+    (midnight after the last included day), or raises an exception if the
+    dates could not be determined. **)
 
 val parse_date :
   ?tz:Timedesc.Time_zone.t ->
@@ -159,15 +157,19 @@ val parse_date :
     expression in the specified timezone. If no timezone is provided, uses the
     local timezone.
 
+    All [`To] results are exclusive upper bounds: midnight at the start of the
+    day after the named day/week/month/year, so that events on the last named
+    day are included when ranges are compared with [start < to].
+
     Supported formats:
     - ISO format:
     - "YYYY-MM-DD" (full date)
     - "YYYY-MM" (partial date)
-    - For --from: defaults to first day of month
-    - For --to: defaults to last day of month
+    - For --from: first day of the month
+    - For --to: exclusive end of the month
     - "YYYY" (partial date)
-    - For --from: defaults to January 1st of year
-    - For --to: defaults to December 31st of year
+    - For --from: January 1st of the year
+    - For --to: exclusive end of the year
     - Relative expressions:
     - "today" - Current day
     - "tomorrow" - Next day

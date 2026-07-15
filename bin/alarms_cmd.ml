@@ -140,11 +140,11 @@ let run ?from_str ?to_str ~calendar:calendars ~format ~today ~tomorrow
               Ok (Some d)
         in
         match (from, to_) with
-        | Some f, Some t -> Ok (Some f, Date.to_end_of_day t)
+        | Some f, Some t -> Ok (Some f, t)
         | Some f, None ->
             let one_month_later = Date.add_months f 1 in
             Ok (Some f, one_month_later)
-        | None, Some t -> Ok (None, Date.to_end_of_day t)
+        | None, Some t -> Ok (None, t)
         | None, None ->
             let today_date = Date.get_today ~tz () in
             let one_month_later = Date.add_months today_date 1 in

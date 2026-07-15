@@ -39,10 +39,10 @@ let run ?from_str ?to_str ~calendar ?count ?query_text ~summary ~description
         in
         let max_date = Date.add_years (Date.get_today ()) 75 in
         match (from, to_) with
-        | Some f, Some t -> Ok (Some f, Date.to_end_of_day t)
-        | Some f, None -> Ok (Some f, Date.to_end_of_day max_date)
-        | None, Some t -> Ok (None, Date.to_end_of_day t)
-        | None, None -> Ok (None, Date.to_end_of_day max_date))
+        | Some f, Some t -> Ok (Some f, t)
+        | Some f, None -> Ok (Some f, max_date)
+        | None, Some t -> Ok (None, t)
+        | None, None -> Ok (None, max_date))
   in
   (match calendar with
   | [] -> ()

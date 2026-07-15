@@ -123,10 +123,7 @@ let generate_query_params (req : query_request) =
     | None -> Ok None
     | Some s -> Result.map Option.some (Date.parse_date ~tz s `From)
   in
-  let* to_ =
-    let* to_date = Date.parse_date ~tz req.to_ `To in
-    Ok (Date.to_end_of_day to_date)
-  in
+  let* to_ = Date.parse_date ~tz req.to_ `To in
   let filters = ref [] in
   (match req.calendars with
   | [] -> ()

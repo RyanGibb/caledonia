@@ -27,11 +27,12 @@ let%expect_test "parse date expressions" =
   
   [%expect {|
     today (from): 2025-03-27
-    today (to): 2025-03-27
+    today (to): 2025-03-28
     tomorrow (from): 2025-03-28
-    tomorrow (to): 2025-03-28
+    tomorrow (to): 2025-03-29
     yesterday (from): 2025-03-26
-    yesterday (to): 2025-03-26 |}]
+    yesterday (to): 2025-03-27
+    |}]
 
 let%expect_test "parse week expressions" =
   let _ = setup_fixed_date () in
@@ -50,7 +51,8 @@ let%expect_test "parse week expressions" =
     this-week (from): 2025-03-24
     this-week (to): 2025-03-30
     next-week (from): 2025-03-30
-    next-week (to): 2025-04-05 |}]
+    next-week (to): 2025-04-06
+    |}]
 
 let%expect_test "parse month expressions" =
   let _ = setup_fixed_date () in
@@ -90,9 +92,10 @@ let%expect_test "parse relative date expressions" =
     +7d: 2025-04-02
     -7d: 2025-03-20
     +2w (from): 2025-04-06
-    +2w (to): 2025-04-12
+    +2w (to): 2025-04-13
     +1m (from): 2025-03-31
-    +1m (to): 2025-04-30 |}]
+    +1m (to): 2025-04-30
+    |}]
 
 let%expect_test "parse absolute date expressions" =
   let _ = setup_fixed_date () in

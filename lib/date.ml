@@ -26,16 +26,6 @@ let get_today ?(tz = local_timezone ()) ?(now = Ptime_clock.now ()) () =
   let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
   timedesc_to_ptime dt
 
-(* Convert a midnight timestamp to end-of-day (23:59:59) *)
-let to_end_of_day date =
-  let dt = ptime_to_timedesc date in
-  let date = Timedesc.date dt in
-  let end_of_day_time =
-    Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
-  in
-  let end_of_day = Timedesc.of_date_and_time_exn date end_of_day_time in
-  timedesc_to_ptime end_of_day
-
 let add_days date days =
   let dt = ptime_to_timedesc date in
   let date = Timedesc.date dt in
@@ -101,7 +91,8 @@ let get_start_of_current_week ?tz ?now () =
 let get_start_of_next_week ?tz ?now () =
   add_days (get_start_of_current_week ?tz ?now ()) 7
 
-let get_end_of_week date = add_days (get_start_of_week date) 6
+(* Exclusive end: midnight at the start of the following Monday *)
+let get_end_of_week date = add_days (get_start_of_week date) 7
 
 let get_end_of_current_week ?tz ?now () =
   get_end_of_week (get_today ?tz ?now ())
@@ -128,35 +119,8 @@ let get_start_of_current_month ?tz ?now () =
 let get_start_of_next_month ?tz ?now () =
   add_months (get_start_of_current_month ?tz ?now ()) 1
 
-let get_end_of_month date =
-  let dt = ptime_to_timedesc date in
-  let year = Timedesc.year dt in
-  let month = Timedesc.month dt in
-
-  (* Determine next month and year *)
-  let next_month_int = if month == 12 then 1 else month + 1 in
-  let next_month_year = if month == 12 then year + 1 else year in
-
-  (* Create a date for the first of next month *)
-  match
-    Timedesc.Date.Ymd.make ~year:next_month_year ~month:next_month_int ~day:1
-  with
-  | Ok first_of_next_month -> (
-      (* Create the timestamp and subtract 1 second *)
-      let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
-      let first_of_next_month_dt =
-        Timedesc.of_date_and_time_exn first_of_next_month midnight
-      in
-      let one_second = Timedesc.Span.For_human.make_exn ~seconds:1 () in
-      let end_of_month_ts =
-        match Timedesc.to_timestamp first_of_next_month_dt with
-        | `Single ts -> Timedesc.Span.sub ts one_second
-        | `Ambiguous (ts, _) -> Timedesc.Span.sub ts one_second
-      in
-      match Timedesc.of_timestamp end_of_month_ts with
-      | Some end_of_month -> timedesc_to_ptime end_of_month
-      | None -> failwith "Invalid timestamp for end of month")
-  | Error _ -> failwith "Invalid date for end of month"
+(* Exclusive end: midnight at the start of the following month *)
+let get_end_of_month date = add_months (get_start_of_month date) 1
 
 let get_end_of_current_month ?tz ?now () =
   get_end_of_month (get_today ?tz ?now ())
@@ -182,19 +146,8 @@ let get_start_of_current_year ?tz ?now () =
 let get_start_of_next_year ?tz ?now () =
   add_years (get_start_of_current_year ?tz ?now ()) 1
 
-let get_end_of_year date =
-  let dt = ptime_to_timedesc date in
-  let year = Timedesc.year dt in
-
-  (* Create a date for the last day of the year (December 31) *)
-  match Timedesc.Date.Ymd.make ~year ~month:12 ~day:31 with
-  | Ok last_day ->
-      let end_of_day =
-        Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
-      in
-      let end_of_year = Timedesc.of_date_and_time_exn last_day end_of_day in
-      timedesc_to_ptime end_of_year
-  | Error _ -> failwith "Invalid date for end of year"
+(* Exclusive end: midnight at the start of the following year *)
+let get_end_of_year date = add_years (get_start_of_year date) 1
 
 let get_end_of_current_year ?tz ?now () =
   get_end_of_year (get_today ?tz ?now ())
@@ -205,31 +158,21 @@ let get_end_of_next_year ?tz ?now () =
 let convert_relative_date_formats ?tz ?now ~today ~tomorrow ~week ~month () =
   if today then
     let today_date = get_today ?tz ?now () in
-    (* Set the end date to end-of-day to include all events on that day *)
-    let end_of_today = to_end_of_day today_date in
-    Some (today_date, end_of_today)
+    Some (today_date, add_days today_date 1)
   else if tomorrow then
-    let today = get_today ?tz ?now () in
-    let tomorrow_date = add_days today 1 in
-    (* Set the end date to end-of-day to include all events on that day *)
-    let end_of_tomorrow = to_end_of_day tomorrow_date in
-    Some (tomorrow_date, end_of_tomorrow)
+    let tomorrow_date = add_days (get_today ?tz ?now ()) 1 in
+    Some (tomorrow_date, add_days tomorrow_date 1)
   else if week then
     let week_start = get_start_of_current_week ?tz ?now () in
-    let week_end_date = add_days week_start 6 in
-    (* Sunday is 6 days from Monday *)
-    (* Set the end date to end-of-day to include all events on Sunday *)
-    let end_of_week = to_end_of_day week_end_date in
-    Some (week_start, end_of_week)
+    Some (week_start, get_end_of_week week_start)
   else if month then
     let month_start = get_start_of_current_month ?tz ?now () in
-    let month_end = get_end_of_month month_start in
-    Some (month_start, month_end)
+    Some (month_start, get_end_of_month month_start)
   else None
 
 let ( let* ) = Result.bind
 
-let parse_full_iso_datet ~tz expr =
+let parse_full_iso_datet ~tz expr parameter =
   let regex = Re.Pcre.regexp "^(\\d{4})-(\\d{1,2})-(\\d{1,2})$" in
   if Re.Pcre.pmatch ~rex:regex expr then
     let match_result = Re.Pcre.exec ~rex:regex expr in
@@ -238,6 +181,13 @@ let parse_full_iso_datet ~tz expr =
     let day = int_of_string (Re.Pcre.get_substring match_result 3) in
     match Timedesc.Date.Ymd.make ~year ~month ~day with
     | Ok date ->
+        (* `To is an exclusive bound: midnight at the start of the next day
+           so that events on the named day are included *)
+        let date =
+          match parameter with
+          | `From -> date
+          | `To -> Timedesc.Date.add ~days:1 date
+        in
         let midnight = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
         let dt = Timedesc.of_date_and_time_exn ~tz date midnight in
         Some (Ok (timedesc_to_ptime dt))
@@ -259,11 +209,9 @@ let parse_year_only ~tz expr parameter =
         | Error _ ->
             Some (Error (`Msg (Printf.sprintf "Invalid year: %s" expr))))
     | `To -> (
-        match Timedesc.Date.Ymd.make ~year ~month:12 ~day:31 with
+        match Timedesc.Date.Ymd.make ~year:(year + 1) ~month:1 ~day:1 with
         | Ok date ->
-            let time =
-              Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
-            in
+            let time = Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 () in
             let dt = Timedesc.of_date_and_time_exn ~tz date time in
             Some (Ok (timedesc_to_ptime dt))
         | Error _ ->
@@ -292,12 +240,11 @@ let parse_year_month ~tz expr parameter =
           Timedesc.Date.Ymd.make ~year:next_month_year ~month:next_month ~day:1
         with
         | Ok next_month_date ->
-            let last_day_of_month = Timedesc.Date.sub ~days:1 next_month_date in
-            let end_of_day =
-              Timedesc.Time.make_exn ~hour:23 ~minute:59 ~second:59 ()
+            let midnight =
+              Timedesc.Time.make_exn ~hour:0 ~minute:0 ~second:0 ()
             in
             let dt =
-              Timedesc.of_date_and_time_exn ~tz last_day_of_month end_of_day
+              Timedesc.of_date_and_time_exn ~tz next_month_date midnight
             in
             Some (Ok (timedesc_to_ptime dt))
         | Error _ ->
@@ -315,7 +262,11 @@ let parse_relative ~tz ?now expr parameter =
     let value = num * multiplier in
     let today = get_today ~tz ?now () in
     match unit with
-    | "d" -> Some (Ok (add_days today value))
+    | "d" -> (
+        let date = add_days today value in
+        match parameter with
+        | `From -> Some (Ok date)
+        | `To -> Some (Ok (add_days date 1)))
     | "w" -> (
         let date = add_weeks today value in
         match parameter with
@@ -335,10 +286,13 @@ let parse_relative ~tz ?now expr parameter =
   else None
 
 let parse_date ?(tz = local_timezone ()) ?now expr parameter =
+  let day_bound date =
+    match parameter with `From -> date | `To -> add_days date 1
+  in
   match expr with
-  | "today" -> Ok (get_today ~tz ?now ())
-  | "tomorrow" -> Ok (add_days (get_today ~tz ?now ()) 1)
-  | "yesterday" -> Ok (add_days (get_today ~tz ?now ()) (-1))
+  | "today" -> Ok (day_bound (get_today ~tz ?now ()))
+  | "tomorrow" -> Ok (day_bound (add_days (get_today ~tz ?now ()) 1))
+  | "yesterday" -> Ok (day_bound (add_days (get_today ~tz ?now ()) (-1)))
   | "this-week" -> (
       match parameter with
       | `From -> Ok (get_start_of_current_week ~tz ?now ())
@@ -358,7 +312,7 @@ let parse_date ?(tz = local_timezone ()) ?now expr parameter =
   | _ -> (
       (* Option alternative operator *)
       let ( |>? ) opt f = match opt with None -> f () | Some x -> Some x in
-      ( ( ( parse_full_iso_datet ~tz expr |>? fun () ->
+      ( ( ( parse_full_iso_datet ~tz expr parameter |>? fun () ->
             parse_year_only ~tz expr parameter )
         |>? fun () -> parse_year_month ~tz expr parameter )
       |>? fun () -> parse_relative ~tz ?now expr parameter )
