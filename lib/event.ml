@@ -435,7 +435,8 @@ let timestamp_to_ics ts buf =
   match ts with
   | `Utc ts -> datetime_to_str ts true
   | `Local ts -> datetime_to_str ts false
-  | `With_tzid (ts, _str) -> (* TODO *) datetime_to_str ts false
+  (* RFC 5545 requires UNTIL to be in UTC when DTSTART is timezone-aware *)
+  | `With_tzid _ as ts -> datetime_to_str (Date.ptime_of_ical (`Datetime ts)) true
 
 let recurs_to_ics (freq, count_or_until, interval, l) buf =
   let write_rulepart key value =
@@ -623,7 +624,7 @@ let format_event ?(format = `Text) ?tz event =
           (fun r ->
             let buf = Buffer.create 128 in
             recurs_to_ics r buf;
-            Printf.sprintf "%s: %s\n" "Reccurence" (Buffer.contents buf))
+            Printf.sprintf "%s: %s\n" "Recurrence" (Buffer.contents buf))
           (get_recurrence event)
         |> Option.value ~default:""
       in
