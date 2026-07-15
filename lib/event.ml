@@ -453,30 +453,14 @@ let text_event_data ?tz event =
             | true -> ("", "")
             | false -> (" - " ^ format_date ?tz end_, ""))
         | false -> (
+            let time_str =
+              match end_timezone with
+              | Some tzid -> " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")"
+              | None -> " " ^ format_time ?tz end_
+            in
             match day_diff start ~next:end_ == 0 with
-            | true ->
-                let tz_str =
-                  match end_timezone with
-                  | Some tzid when same_timezone ->
-                      ("", " - " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")")
-                  | Some tzid ->
-                      ("", " - " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")")
-                  | None -> ("", " - " ^ format_time ?tz end_)
-                in
-                tz_str
-            | false ->
-                let tz_str =
-                  match end_timezone with
-                  | Some tzid when same_timezone ->
-                      ( " - " ^ format_date ?tz end_,
-                        " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")" )
-                  | Some tzid ->
-                      ( " - " ^ format_date ?tz end_,
-                        " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")" )
-                  | None ->
-                      (" - " ^ format_date ?tz end_, " " ^ format_time ?tz end_)
-                in
-                tz_str))
+            | true -> ("", " -" ^ time_str)
+            | false -> (" - " ^ format_date ?tz end_, time_str)))
   in
   let summary =
     match get_summary event with
