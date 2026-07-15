@@ -211,6 +211,51 @@ let%expect_test "boolean logic" =
     NOT filter (NOT Meeting): 2 events
     Complex filter: 3 events |}]
 
+let%expect_test "unknown TZID degrades to UTC instead of raising" =
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  let ics =
+    "BEGIN:VCALENDAR\r\n\
+     VERSION:2.0\r\n\
+     PRODID:-//Test//Test//EN\r\n\
+     BEGIN:VEVENT\r\n\
+     UID:bad-tzid-event\r\n\
+     DTSTAMP:20250101T000000Z\r\n\
+     DTSTART;TZID=Mars/Olympus:20250315T100000\r\n\
+     SUMMARY:Event with unknown timezone\r\n\
+     END:VEVENT\r\n\
+     END:VCALENDAR\r\n"
+  in
+  let calendar = Result.get_ok @@ Icalendar.parse ics in
+  let file = Eio.Path.(fs / "dummy.ics") in
+  let events = Event.events_of_icalendar "test" ~file calendar in
+  let event = List.hd events in
+  Printf.printf "start: %s\n" (Ptime.to_rfc3339 (Event.get_start event));
+  [%expect {|
+    Warning: unknown timezone Mars/Olympus, treating as UTC
+    start: 2025-03-15T10:00:00-00:00
+    |}]
+
+let%expect_test "invalid duration yields no end time instead of raising" =
+  Eio_main.run @@ fun env ->
+  let fs = Eio.Stdenv.fs env in
+  let huge = Ptime.Span.of_int_s (86400 * 365 * 9000) in
+  let event =
+    Result.get_ok
+    @@ Event.create ~fs ~calendar_dir_path ~summary:"Overflowing duration"
+         ~start:(Icalendar.Params.empty, `Datetime (`Utc fixed_date))
+         ~end_:(`Duration (Icalendar.Params.empty, huge))
+         "example"
+  in
+  Printf.printf "end: %s\n"
+    (match Event.get_end event with
+    | Some t -> Ptime.to_rfc3339 t
+    | None -> "none");
+  [%expect {|
+    Warning: invalid duration 283824000000.00s on event starting 2025-03-27T00:00:00-00:00, ignoring end time
+    end: none
+    |}]
+
 let%expect_test "cross-field search" =
   Eio_main.run @@ fun env ->
   let fs = Eio.Stdenv.fs env in

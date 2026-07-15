@@ -411,7 +411,7 @@ let parse_date_time ?(tz = !default_timezone ()) ~date ~time parameter =
 let ptime_of_ical = function
   | `Datetime (`Utc t) -> t
   | `Datetime (`Local t) ->
-      let tz = Timedesc.Time_zone.local_exn () in
+      let tz = !default_timezone () in
       let ts = Timedesc.Utils.timestamp_of_ptime t in
       (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let dt =
@@ -426,7 +426,10 @@ let ptime_of_ical = function
       let tz =
         match Timedesc.Time_zone.make tzid with
         | Some tz -> tz
-        | None -> failwith (Printf.sprintf "Warning: Unknown timezone %s" tzid)
+        | None ->
+            Printf.eprintf "Warning: unknown timezone %s, treating as UTC\n%!"
+              tzid;
+            Timedesc.Time_zone.utc
       in
       (* Icalendar gives us the Ptime in UTC, which we parse to a Timedesc *)
       let ts = Timedesc.Utils.timestamp_of_ptime t in

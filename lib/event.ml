@@ -184,10 +184,13 @@ let get_ical_end event =
       match Ptime.add_span start span with
       | Some t -> Some t
       | None ->
-          failwith
-            (Printf.sprintf "Invalid duration calculation: %s + %s"
-               (Ptime.to_rfc3339 start)
-               (Printf.sprintf "%.2fs" (Ptime.Span.to_float_s span))))
+          Printf.eprintf
+            "Warning: invalid duration %.2fs on event starting %s, ignoring \
+             end time\n\
+             %!"
+            (Ptime.Span.to_float_s span)
+            (Ptime.to_rfc3339 start);
+          None)
   | None -> None
 
 let get_end t = get_ical_end t.event

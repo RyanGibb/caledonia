@@ -2,5 +2,5 @@
  (name caledonia_test)
  (inline_tests
   (deps (source_tree calendar)))
- (libraries caledonia_lib str ptime)
+ (libraries caledonia_lib str ptime icalendar)
  (preprocess (pps ppx_expect)))
