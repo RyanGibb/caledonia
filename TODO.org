@@ -78,10 +78,3 @@
   Todos typically have no date, so they're excluded by =list='s default date range filter.
   You have to use =search --type todo= instead, which is confusing.
   Either =list= should skip date bounds for todos, or hint the user.
-* BUG all-day events shift date when displayed in a non-local timezone
-  =Date.ptime_of_ical= interprets a =VALUE=DATE= DTSTART as midnight in the
-  process-local timezone, so formatting the event with another =--timezone=
-  (or a different =TZ=) can shift the displayed date by a day. For example,
-  with =TZ=Europe/London= (BST), an all-day event on =20250417= is stored as
-  2025-04-16T23:00Z and =caled list -z UTC= shows it on April 16. All-day
-  events should display their civil date unchanged regardless of timezone.

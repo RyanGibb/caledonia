@@ -221,6 +221,14 @@ let is_date t =
   | _, Some (`Dtend (_, `Date _)) -> true
   | _ -> false
 
+let get_start_civil_date t =
+  match snd t.event.dtstart with `Date d -> Some d | _ -> None
+
+let get_end_civil_date t =
+  match t.event.dtend_or_duration with
+  | Some (`Dtend (_, `Date d)) -> Some d
+  | _ -> None
+
 let get_location t =
   match
     List.filter_map
@@ -362,22 +370,31 @@ let clone_with_event t event =
 
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
+let weekday_string = function
+  | `Mon -> "Mon"
+  | `Tue -> "Tue"
+  | `Wed -> "Wed"
+  | `Thu -> "Thu"
+  | `Fri -> "Fri"
+  | `Sat -> "Sat"
+  | `Sun -> "Sun"
+
 let format_date ?tz date =
   let dt = Date.ptime_to_timedesc ?tz date in
   let y = Timedesc.year dt in
   let m = Timedesc.month dt in
   let d = Timedesc.day dt in
-  let weekday =
-    match Timedesc.weekday dt with
-    | `Mon -> "Mon"
-    | `Tue -> "Tue"
-    | `Wed -> "Wed"
-    | `Thu -> "Thu"
-    | `Fri -> "Fri"
-    | `Sat -> "Sat"
-    | `Sun -> "Sun"
-  in
-  Printf.sprintf "%04d-%02d-%02d %s" y m d weekday
+  Printf.sprintf "%04d-%02d-%02d %s" y m d
+    (weekday_string (Timedesc.weekday dt))
+
+(* All-day events carry a civil date, not an instant; format it directly so
+   the displayed date cannot shift with the display timezone *)
+let format_civil_date (y, m, d) =
+  match Timedesc.Date.Ymd.make ~year:y ~month:m ~day:d with
+  | Ok date ->
+      Printf.sprintf "%04d-%02d-%02d %s" y m d
+        (weekday_string (Timedesc.Date.weekday date))
+  | Error _ -> Printf.sprintf "%04d-%02d-%02d" y m d
 
 let format_time ?tz date =
   let dt = Date.ptime_to_timedesc ?tz date in
@@ -491,7 +508,11 @@ let text_event_data ?tz event =
   let id = get_id event in
   let start = get_start event in
   let end_ = get_end event in
-  let start_date = format_date ?tz start in
+  let start_date =
+    match get_start_civil_date event with
+    | Some d -> format_civil_date d
+    | None -> format_date ?tz start
+  in
   let start_timezone = get_start_timezone event in
   let end_timezone = get_end_timezone event in
   let same_timezone =
@@ -520,7 +541,13 @@ let text_event_data ?tz event =
         | true -> (
             match day_diff start ~next:end_ <= 1 with
             | true -> ("", "")
-            | false -> (" - " ^ format_date ?tz end_, ""))
+            | false ->
+                let end_str =
+                  match get_end_civil_date event with
+                  | Some d -> format_civil_date d
+                  | None -> format_date ?tz end_
+                in
+                (" - " ^ end_str, ""))
         | false -> (
             let time_str =
               match end_timezone with
@@ -599,9 +626,12 @@ let format_event ?(format = `Text) ?tz event =
         | Some tz1, Some tz2 when tz1 = tz2 -> true
         | _ -> false
       in
-      let format timezone datetime is_end =
+      let format timezone civil datetime is_end =
         match is_date event with
-        | true -> format_date ?tz datetime
+        | true -> (
+            match civil with
+            | Some d -> format_civil_date d
+            | None -> format_date ?tz datetime)
         | false ->
             let tz_suffix =
               if (not is_end) && same_timezone then ""
@@ -610,10 +640,14 @@ let format_event ?(format = `Text) ?tz event =
             format_datetime ?tz datetime ^ tz_suffix
       in
       let start_str =
-        format_opt "Start" (fun d -> format start_timezone d false) (Some start)
+        format_opt "Start"
+          (fun d -> format start_timezone (get_start_civil_date event) d false)
+          (Some start)
       in
       let end_str =
-        format_opt "End" (fun d -> format end_timezone d true) end_
+        format_opt "End"
+          (fun d -> format end_timezone (get_end_civil_date event) d true)
+          end_
       in
       let location_str = format_opt "Location" Fun.id (get_location event) in
       let description_str =
@@ -653,11 +687,16 @@ let format_event ?(format = `Text) ?tz event =
               match get_summary event with
               | Some summary -> `String summary
               | None -> `Null );
-            ("start", `String (format_datetime ?tz start));
+            ( "start",
+              `String
+                (match get_start_civil_date event with
+                | Some d -> format_civil_date d
+                | None -> format_datetime ?tz start) );
             ( "end",
-              match end_ with
-              | Some e -> `String (format_datetime ?tz e)
-              | None -> `Null );
+              match (get_end_civil_date event, end_) with
+              | Some d, _ -> `String (format_civil_date d)
+              | None, Some e -> `String (format_datetime ?tz e)
+              | None, None -> `Null );
             ( "location",
               match get_location event with
               | Some loc -> `String loc
@@ -680,9 +719,16 @@ let format_event ?(format = `Text) ?tz event =
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
       in
-      let start = format_datetime ?tz start in
+      let start =
+        match get_start_civil_date event with
+        | Some d -> format_civil_date d
+        | None -> format_datetime ?tz start
+      in
       let end_str =
-        match end_ with Some e -> format_datetime ?tz e | None -> ""
+        match (get_end_civil_date event, end_) with
+        | Some d, _ -> format_civil_date d
+        | None, Some e -> format_datetime ?tz e
+        | None, None -> ""
       in
       let location =
         match get_location event with Some loc -> loc | None -> ""
