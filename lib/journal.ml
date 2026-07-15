@@ -13,13 +13,6 @@ let get_id t =
     t.props
   |> Option.value ~default:""
 
-let sexp_of_t t =
-  Sexplib.Sexp.List [
-    Sexplib.Sexp.Atom "journal";
-    Sexplib.Sexp.Atom (get_id t);
-    Sexplib.Sexp.Atom t.calendar_name;
-  ]
-
 let uuid_gen = lazy (Uuidm.v4_gen (Random.State.make_self_init ()))
 let generate_uuid () = Uuidm.to_string (Lazy.force uuid_gen ())
 
@@ -155,6 +148,30 @@ let get_status t =
 let get_calendar_name t = t.calendar_name
 let get_file t = t.file
 
+let sexp_of_t t =
+  let open Sexplib.Sexp in
+  let entries =
+    [
+      Some (List [ Atom "id"; Atom (get_id t) ]);
+      (match get_summary t with
+      | Some s -> Some (List [ Atom "summary"; Atom s ])
+      | None -> None);
+      (match get_start t with
+      | Some s -> Some (List [ Atom "start"; Atom (Ptime.to_rfc3339 s) ])
+      | None -> None);
+      (match get_description t with
+      | Some d -> Some (List [ Atom "description"; Atom d ])
+      | None -> None);
+      (match get_categories t with
+      | [] -> None
+      | cats ->
+          Some (List [ Atom "categories"; List (List.map (fun c -> Atom c) cats) ]));
+      Some (List [ Atom "file"; Atom (snd (get_file t)) ]);
+      Some (List [ Atom "calendar"; Atom (get_calendar_name t) ]);
+    ]
+  in
+  List (List.filter_map Fun.id entries)
+
 type format = [ `Text | `Entries | `Json | `Csv | `Ics | `Sexp ]
 
 let format_prop_value = function
@@ -263,20 +280,7 @@ let format_journal ?(format = `Text) ?tz journal =
   | `Ics ->
       let calendar = to_ical_calendar journal in
       Icalendar.to_ics ~cr:true calendar
-  | `Sexp ->
-      let summary = Option.value ~default:"" (get_summary journal) in
-      let start_str = match get_start journal with
-        | Some s -> Printf.sprintf "\"%s\"" (Ptime.to_rfc3339 s)
-        | None -> "nil"
-      in
-      let cats = get_categories journal in
-      let cats_str = if cats = [] then "nil"
-        else Printf.sprintf "(%s)" (String.concat " " (List.map (fun c -> Printf.sprintf "\"%s\"" (String.escaped c)) cats)) in
-      let calendar = Printf.sprintf "\"%s\"" (String.escaped (get_calendar_name journal)) in
-      let id = get_id journal in
-      Printf.sprintf
-        "((:id \"%s\" :summary \"%s\" :start %s :categories %s :calendar %s))"
-        (String.escaped id) (String.escaped summary) start_str cats_str calendar
+  | `Sexp -> Sexplib.Sexp.to_string (sexp_of_t journal)
 
 let format_journals_with_dynamic_columns ?tz ?get_color journals =
   if journals = [] then ""

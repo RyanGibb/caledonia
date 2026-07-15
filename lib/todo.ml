@@ -14,13 +14,6 @@ let get_id t =
     t.props
   |> Option.value ~default:""
 
-let sexp_of_t t =
-  Sexplib.Sexp.List [
-    Sexplib.Sexp.Atom "todo";
-    Sexplib.Sexp.Atom (get_id t);
-    Sexplib.Sexp.Atom t.calendar_name;
-  ]
-
 let uuid_gen = lazy (Uuidm.v4_gen (Random.State.make_self_init ()))
 let generate_uuid () = Uuidm.to_string (Lazy.force uuid_gen ())
 
@@ -288,6 +281,56 @@ let get_related_parent t =
       | _ -> None)
     t.props
 
+let status_to_string = function
+  | `Completed -> "completed"
+  | `In_process -> "in-process"
+  | `Needs_action -> "needs-action"
+  | `Cancelled -> "cancelled"
+  | `Confirmed -> "confirmed"
+  | `Draft -> "draft"
+  | `Final -> "final"
+  | `Tentative -> "tentative"
+
+let sexp_of_t t =
+  let open Sexplib.Sexp in
+  let entries =
+    [
+      Some (List [ Atom "id"; Atom (get_id t) ]);
+      (match get_summary t with
+      | Some s -> Some (List [ Atom "summary"; Atom s ])
+      | None -> None);
+      (match get_start t with
+      | Some s -> Some (List [ Atom "start"; Atom (Ptime.to_rfc3339 s) ])
+      | None -> None);
+      (match get_due t with
+      | Some d -> Some (List [ Atom "due"; Atom (Ptime.to_rfc3339 d) ])
+      | None -> None);
+      (match get_priority t with
+      | Some p -> Some (List [ Atom "priority"; Atom (string_of_int p) ])
+      | None -> None);
+      (match get_percent t with
+      | Some p -> Some (List [ Atom "percent"; Atom (string_of_int p) ])
+      | None -> None);
+      (match get_status t with
+      | Some s -> Some (List [ Atom "status"; Atom (status_to_string s) ])
+      | None -> None);
+      (match get_description t with
+      | Some d -> Some (List [ Atom "description"; Atom d ])
+      | None -> None);
+      (match get_categories t with
+      | [] -> None
+      | cats ->
+          Some (List [ Atom "categories"; List (List.map (fun c -> Atom c) cats) ]));
+      (match get_alarms t with
+      | [] -> None
+      | alarms ->
+          Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms alarms) ]));
+      Some (List [ Atom "file"; Atom (snd (get_file t)) ]);
+      Some (List [ Atom "calendar"; Atom (get_calendar_name t) ]);
+    ]
+  in
+  List (List.filter_map Fun.id entries)
+
 let is_completed t =
   match get_status t with Some `Completed -> true | _ -> false
 
@@ -487,32 +530,7 @@ let format_todo ?(format = `Text) ?tz todo =
   | `Ics ->
       let calendar = to_ical_calendar todo in
       Icalendar.to_ics ~cr:true calendar
-  | `Sexp ->
-      let summary = Option.value ~default:"" (get_summary todo) in
-      let due_str = match get_due todo with
-        | Some d -> Printf.sprintf "\"%s\"" (Ptime.to_rfc3339 d)
-        | None -> "nil"
-      in
-      let priority = match get_priority todo with Some p -> string_of_int p | None -> "nil" in
-      let percent = match get_percent todo with Some p -> string_of_int p | None -> "nil" in
-      let status_str = match get_status todo with
-        | Some `Completed -> "\"completed\""
-        | Some `In_process -> "\"in-process\""
-        | Some `Needs_action -> "\"needs-action\""
-        | Some `Cancelled -> "\"cancelled\""
-        | _ -> "nil"
-      in
-      let alarms_sexp =
-        let alarms = get_alarms todo in
-        match alarms with
-        | [] -> "nil"
-        | _ -> Printf.sprintf "\"%s\"" (String.escaped (Format_utils.format_alarms alarms))
-      in
-      let calendar = Printf.sprintf "\"%s\"" (String.escaped (get_calendar_name todo)) in
-      let id = get_id todo in
-      Printf.sprintf
-        "((:id \"%s\" :summary \"%s\" :due %s :priority %s :percent %s :status %s :calendar %s :alarms %s))"
-        (String.escaped id) (String.escaped summary) due_str priority percent status_str calendar alarms_sexp
+  | `Sexp -> Sexplib.Sexp.to_string (sexp_of_t todo)
 
 let format_todos_with_dynamic_columns ?tz ?get_color todos =
   if todos = [] then ""

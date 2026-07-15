@@ -288,6 +288,72 @@ let chain comp1 comp2 e1 e2 =
   let result = comp1 e1 e2 in
   if result <> 0 then result else comp2 e1 e2
 
+let sexp_of_t event =
+  let open Sexplib.Sexp in
+  let start = get_start event in
+  let end_ = get_end event in
+  let resolve_tz tzid =
+    match Timedesc.Time_zone.make tzid with Some tz -> Some tz | None -> None
+  in
+  let format_ptime_iso ?tz p =
+    let dt = match tz with
+      | Some tz -> Date.ptime_to_timedesc ~tz p
+      | None -> Date.ptime_to_timedesc p
+    in
+    let y = Timedesc.year dt in
+    let m = Timedesc.month dt in
+    let d = Timedesc.day dt in
+    let h = Timedesc.hour dt in
+    let min = Timedesc.minute dt in
+    let s = Timedesc.second dt in
+    Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
+  in
+  let start_tz_str = get_start_timezone event in
+  let end_tz_str = get_end_timezone event in
+  let start_tz = Option.bind start_tz_str resolve_tz in
+  let end_tz = Option.bind end_tz_str resolve_tz in
+  let entries =
+    [
+      Some (List [ Atom "id"; Atom (get_id event) ]);
+      (match get_summary event with
+      | Some s -> Some (List [ Atom "summary"; Atom s ])
+      | None -> None);
+      Some (List [ Atom "start"; Atom (format_ptime_iso ?tz:start_tz start) ]);
+      Some (List [ Atom "start_local"; Atom (format_ptime_iso start) ]);
+      (match start_tz_str with
+      | Some tz -> Some (List [ Atom "start_tz"; Atom tz ])
+      | None -> None);
+      (match end_ with
+      | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso ?tz:end_tz e) ])
+      | None -> None);
+      (match end_ with
+      | Some e -> Some (List [ Atom "end_local"; Atom (format_ptime_iso e) ])
+      | None -> None);
+      (match end_tz_str with
+      | Some tz -> Some (List [ Atom "end_tz"; Atom tz ])
+      | None -> None);
+      (match get_location event with
+      | Some l -> Some (List [ Atom "location"; Atom l ])
+      | None -> None);
+      (match get_description event with
+      | Some d -> Some (List [ Atom "description"; Atom d ])
+      | None -> None);
+      (match get_alarms event with
+      | [] -> None
+      | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms_short alarms) ]));
+      (if is_date event then Some (List [ Atom "is_date"; Atom "true" ])
+       else None);
+      Some (List [ Atom "start_utc"; Atom (Ptime.to_rfc3339 start) ]);
+      (match get_recurrence event with
+      | Some _ -> Some (List [ Atom "recurring"; Atom "true" ])
+      | None -> None);
+      Some (List [ Atom "file"; Atom (snd (get_file event)) ]);
+      Some (List [ Atom "calendar"; Atom (get_calendar_name event) ]);
+    ]
+  in
+  let filtered_entries = List.filter_map Fun.id entries in
+  List filtered_entries
+
 let clone_with_event t event =
   let calendar_name = t.calendar_name in
   let file = t.file in
@@ -626,60 +692,7 @@ let format_event ?(format = `Text) ?tz event =
   | `Ics ->
       let calendar = to_ical_calendar event in
       Icalendar.to_ics ~cr:true calendar
-  | `Sexp ->
-      let summary =
-        match get_summary event with Some summary -> summary | None -> ""
-      in
-      let start_str =
-        let dt = Date.ptime_to_timedesc ?tz start in
-        let y = Timedesc.year dt in
-        let m = Timedesc.month dt in
-        let d = Timedesc.day dt in
-        let h = Timedesc.hour dt in
-        let min = Timedesc.minute dt in
-        let s = Timedesc.second dt in
-        (* Format as a single timestamp string that's easy for Emacs to parse *)
-        Printf.sprintf "\"%04d-%02d-%02dT%02d:%02d:%02d\"" y m d h min s
-      in
-      let end_str =
-        match end_ with
-        | Some end_date ->
-            let dt = Date.ptime_to_timedesc ?tz end_date in
-            let y = Timedesc.year dt in
-            let m = Timedesc.month dt in
-            let d = Timedesc.day dt in
-            let h = Timedesc.hour dt in
-            let min = Timedesc.minute dt in
-            let s = Timedesc.second dt in
-            Printf.sprintf "\"%04d-%02d-%02dT%02d:%02d:%02d\"" y m d h min s
-        | None -> "nil"
-      in
-      let location =
-        match get_location event with
-        | Some loc -> Printf.sprintf "\"%s\"" (String.escaped loc)
-        | None -> "nil"
-      in
-      let description =
-        match get_description event with
-        | Some desc -> Printf.sprintf "\"%s\"" (String.escaped desc)
-        | None -> "nil"
-      in
-      let calendar =
-        match get_calendar_name event with
-        | cal -> Printf.sprintf "\"%s\"" (String.escaped cal)
-      in
-      let alarms_sexp =
-        let alarms = get_alarms event in
-        match alarms with
-        | [] -> "nil"
-        | _ -> Printf.sprintf "\"%s\"" (String.escaped (Format_utils.format_alarms alarms))
-      in
-      let id = get_id event in
-      Printf.sprintf
-        "((:id \"%s\" :summary \"%s\" :start %s :end %s :location %s \
-         :description %s :calendar %s :alarms %s))"
-        (String.escaped id) (String.escaped summary) start_str end_str location
-        description calendar alarms_sexp
+  | `Sexp -> Sexplib.Sexp.to_string (sexp_of_t event)
 
 let format_events_with_dynamic_columns ?tz ?get_color events =
   if events = [] then ""
@@ -817,72 +830,6 @@ let expand_recurrences ~from ~to_ event =
         recur_events ~recurrence_ids:other_events ical_event
       in
       collect generator []
-
-let sexp_of_t event =
-  let open Sexplib.Sexp in
-  let start = get_start event in
-  let end_ = get_end event in
-  let resolve_tz tzid =
-    match Timedesc.Time_zone.make tzid with Some tz -> Some tz | None -> None
-  in
-  let format_ptime_iso ?tz p =
-    let dt = match tz with
-      | Some tz -> Date.ptime_to_timedesc ~tz p
-      | None -> Date.ptime_to_timedesc p
-    in
-    let y = Timedesc.year dt in
-    let m = Timedesc.month dt in
-    let d = Timedesc.day dt in
-    let h = Timedesc.hour dt in
-    let min = Timedesc.minute dt in
-    let s = Timedesc.second dt in
-    Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
-  in
-  let start_tz_str = get_start_timezone event in
-  let end_tz_str = get_end_timezone event in
-  let start_tz = Option.bind start_tz_str resolve_tz in
-  let end_tz = Option.bind end_tz_str resolve_tz in
-  let entries =
-    [
-      Some (List [ Atom "id"; Atom (get_id event) ]);
-      (match get_summary event with
-      | Some s -> Some (List [ Atom "summary"; Atom s ])
-      | None -> None);
-      Some (List [ Atom "start"; Atom (format_ptime_iso ?tz:start_tz start) ]);
-      Some (List [ Atom "start_local"; Atom (format_ptime_iso start) ]);
-      (match start_tz_str with
-      | Some tz -> Some (List [ Atom "start_tz"; Atom tz ])
-      | None -> None);
-      (match end_ with
-      | Some e -> Some (List [ Atom "end"; Atom (format_ptime_iso ?tz:end_tz e) ])
-      | None -> None);
-      (match end_ with
-      | Some e -> Some (List [ Atom "end_local"; Atom (format_ptime_iso e) ])
-      | None -> None);
-      (match end_tz_str with
-      | Some tz -> Some (List [ Atom "end_tz"; Atom tz ])
-      | None -> None);
-      (match get_location event with
-      | Some l -> Some (List [ Atom "location"; Atom l ])
-      | None -> None);
-      (match get_description event with
-      | Some d -> Some (List [ Atom "description"; Atom d ])
-      | None -> None);
-      (match get_alarms event with
-      | [] -> None
-      | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms_short alarms) ]));
-      (if is_date event then Some (List [ Atom "is_date"; Atom "true" ])
-       else None);
-      Some (List [ Atom "start_utc"; Atom (Ptime.to_rfc3339 start) ]);
-      (match get_recurrence event with
-      | Some _ -> Some (List [ Atom "recurring"; Atom "true" ])
-      | None -> None);
-      Some (List [ Atom "file"; Atom (snd (get_file event)) ]);
-      Some (List [ Atom "calendar"; Atom (get_calendar_name event) ]);
-    ]
-  in
-  let filtered_entries = List.filter_map Fun.id entries in
-  List filtered_entries
 
 type filter = t -> bool
 
