@@ -94,8 +94,8 @@ let%expect_test "format_event json and csv" =
   print_endline (Event.format_event ~format:`Json ~tz:utc (parse_event ~fs timed_event_ics));
   print_endline (Event.format_event ~format:`Csv ~tz:utc (parse_event ~fs timed_event_ics));
   [%expect {|
-    {"id":"timed-event","summary":"Team meeting","start":"2025-04-17 Thu 13:00(UTC)","end":"2025-04-17 Thu 14:00(UTC)","location":"Room 3","description":"Quarterly planning","calendar":"work","alarms":[]}
-    "Team meeting","2025-04-17 Thu 13:00(UTC)","2025-04-17 Thu 14:00(UTC)","Room 3","work"
+    {"id":"timed-event","summary":"Team meeting","is_date":false,"start":"2025-04-17T14:00:00+01:00","start_local":"2025-04-17T13:00:00Z","start_tz":"Europe/London","end":"2025-04-17T15:00:00+01:00","end_local":"2025-04-17T14:00:00Z","end_tz":"Europe/London","location":"Room 3","description":"Quarterly planning","calendar":"work","alarms":[]}
+    "Team meeting","2025-04-17T14:00:00+01:00","Europe/London","2025-04-17T15:00:00+01:00","Europe/London","Room 3","work"
     |}]
 
 let%expect_test "format_event sexp matches sexp_of_t" =
@@ -109,7 +109,7 @@ let%expect_test "format_event sexp matches sexp_of_t" =
   print_endline via_format;
   [%expect {|
     identical: true
-    ((id timed-event)(summary"Team meeting")(start 2025-04-17T14:00:00)(start_local 2025-04-17T13:00:00)(start_tz Europe/London)(end 2025-04-17T15:00:00)(end_local 2025-04-17T14:00:00)(end_tz Europe/London)(location"Room 3")(description"Quarterly planning")(start_utc 2025-04-17T13:00:00-00:00)(file test.ics)(calendar work))
+    ((id timed-event)(summary"Team meeting")(start 2025-04-17T14:00:00)(start_local 2025-04-17T13:00:00)(start_tz Europe/London)(end 2025-04-17T15:00:00)(end_local 2025-04-17T14:00:00)(end_tz Europe/London)(location"Room 3")(description"Quarterly planning")(start_utc 2025-04-17T13:00:00Z)(file test.ics)(calendar work))
     |}]
 
 let%expect_test "all-day events display their civil date in any timezone" =
@@ -127,8 +127,8 @@ let%expect_test "all-day events display their civil date in any timezone" =
   [%expect {|
     work	2025-04-17 Thu - 2025-04-19 Sat	Conference		all-day-event
     work	2025-04-17 Thu - 2025-04-19 Sat	Conference		all-day-event
-    {"id":"all-day-event","summary":"Conference","start":"2025-04-17 Thu","end":"2025-04-19 Sat","location":null,"description":null,"calendar":"work","alarms":[]}
-    "Conference","2025-04-17 Thu","2025-04-19 Sat","","work"
+    {"id":"all-day-event","summary":"Conference","is_date":true,"start":"2025-04-17","start_local":null,"start_tz":null,"end":"2025-04-19","end_local":null,"end_tz":null,"location":null,"description":null,"calendar":"work","alarms":[]}
+    "Conference","2025-04-17","","2025-04-19","","","work"
     Summary: Conference
     Start: 2025-04-17 Thu
     End: 2025-04-19 Sat

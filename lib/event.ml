@@ -299,23 +299,48 @@ let chain comp1 comp2 e1 e2 =
 (* Resolve a stored TZID to a timezone, if it names one we know. *)
 let resolve_tz tzid = Timedesc.Time_zone.make tzid
 
+(* Naive ISO 8601, no offset: the reader is expected to pair it with the
+   accompanying *_tz field. Used by the sexp protocol. *)
+let format_ptime_iso ?tz p =
+  let dt =
+    match tz with
+    | Some tz -> Date.ptime_to_timedesc ~tz p
+    | None -> Date.ptime_to_timedesc p
+  in
+  let y = Timedesc.year dt in
+  let m = Timedesc.month dt in
+  let d = Timedesc.day dt in
+  let h = Timedesc.hour dt in
+  let min = Timedesc.minute dt in
+  let s = Timedesc.second dt in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
+
+(* Offset-qualified RFC 3339, self-contained: an instant that needs no
+   accompanying zone to be read correctly. Used by the JSON and CSV exports. *)
+let format_ptime_rfc3339 ~tz p =
+  Timedesc.to_rfc3339 ~frac_s:0 (Date.ptime_to_timedesc ~tz p)
+
+(* ISO 8601 duration, e.g. -PT3H for an alarm three hours before. *)
+let format_iso_duration span =
+  let secs = Ptime.Span.to_float_s span in
+  let sign = if secs < 0.0 then "-" else "" in
+  let total = int_of_float (Float.abs secs) in
+  let days = total / 86400 in
+  let rem = total mod 86400 in
+  let unit n suffix = if n > 0 then string_of_int n ^ suffix else "" in
+  let date_part = unit days "D" in
+  let time_part =
+    unit (rem / 3600) "H" ^ unit (rem mod 3600 / 60) "M" ^ unit (rem mod 60) "S"
+  in
+  if date_part = "" && time_part = "" then "PT0S"
+  else
+    sign ^ "P" ^ date_part
+    ^ if time_part = "" then "" else "T" ^ time_part
+
 let sexp_of_t event =
   let open Sexplib.Sexp in
   let start = get_start event in
   let end_ = get_end event in
-  let format_ptime_iso ?tz p =
-    let dt = match tz with
-      | Some tz -> Date.ptime_to_timedesc ~tz p
-      | None -> Date.ptime_to_timedesc p
-    in
-    let y = Timedesc.year dt in
-    let m = Timedesc.month dt in
-    let d = Timedesc.day dt in
-    let h = Timedesc.hour dt in
-    let min = Timedesc.minute dt in
-    let s = Timedesc.second dt in
-    Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" y m d h min s
-  in
   let start_tz_str = get_start_timezone event in
   let end_tz_str = get_end_timezone event in
   let start_tz = Option.bind start_tz_str resolve_tz in
@@ -351,7 +376,11 @@ let sexp_of_t event =
       | alarms -> Some (List [ Atom "alarms"; Atom (Format_utils.format_alarms_short alarms) ]));
       (if is_date event then Some (List [ Atom "is_date"; Atom "true" ])
        else None);
-      Some (List [ Atom "start_utc"; Atom (Ptime.to_rfc3339 start) ]);
+      (* ~tz_offset_s:0 so this reads as UTC; Ptime's default renders the
+         offset as -00:00, which RFC 3339 defines as "offset unknown". *)
+      Some
+        (List
+           [ Atom "start_utc"; Atom (Ptime.to_rfc3339 ~tz_offset_s:0 start) ]);
       (match get_recurrence event with
       | Some _ -> Some (List [ Atom "recurring"; Atom "true" ])
       | None -> None);
@@ -607,6 +636,42 @@ let format_prop_value = function
   | `Xprop ((ns, name), _, value) -> Some (ns ^ ":" ^ name, value)
   | _ -> None
 
+(* Shared by the JSON and CSV exports. For each endpoint it yields the instant
+   in the zone the event is stored in, the same instant in the display zone,
+   and the stored TZID — so a consumer can recover the local reading of a
+   cross-zone event, which a single rendering cannot express. All-day events
+   carry a plain date and no zone at all. *)
+let export_datetime ?tz event =
+  let display = Option.value tz ~default:(Date.local_timezone ()) in
+  let endpoint = function
+    | `Start ->
+        (Some (get_start event), get_start_civil_date event,
+          get_start_timezone event)
+    | `End -> (get_end event, get_end_civil_date event, get_end_timezone event)
+  in
+  let iso which =
+    let p, civil, tzid = endpoint which in
+    match (is_date event, civil, p) with
+    | true, Some (y, m, d), _ -> Some (Printf.sprintf "%04d-%02d-%02d" y m d)
+    | true, None, Some p -> Some (format_ptime_iso ~tz:display p)
+    | false, _, Some p ->
+        let zone =
+          Option.value (Option.bind tzid resolve_tz) ~default:display
+        in
+        Some (format_ptime_rfc3339 ~tz:zone p)
+    | _, _, None -> None
+  in
+  let iso_local which =
+    let p, _, _ = endpoint which in
+    if is_date event then None
+    else Option.map (format_ptime_rfc3339 ~tz:display) p
+  in
+  let iso_tz which =
+    let _, _, tzid = endpoint which in
+    if is_date event then None else tzid
+  in
+  (iso, iso_local, iso_tz)
+
 let format_event ?(format = `Text) ?tz event =
   let start = get_start event in
   let end_ = get_end event in
@@ -704,6 +769,8 @@ let format_event ?(format = `Text) ?tz event =
         other_props_str file_str
   | `Json ->
       let open Yojson.Safe in
+      let iso, iso_local, iso_tz = export_datetime ?tz event in
+      let opt_string = function Some s -> `String s | None -> `Null in
       let json =
         `Assoc
           [
@@ -712,16 +779,13 @@ let format_event ?(format = `Text) ?tz event =
               match get_summary event with
               | Some summary -> `String summary
               | None -> `Null );
-            ( "start",
-              `String
-                (match get_start_civil_date event with
-                | Some d -> format_civil_date d
-                | None -> format_datetime ?tz start) );
-            ( "end",
-              match (get_end_civil_date event, end_) with
-              | Some d, _ -> `String (format_civil_date d)
-              | None, Some e -> `String (format_datetime ?tz e)
-              | None, None -> `Null );
+            ("is_date", `Bool (is_date event));
+            ("start", opt_string (iso `Start));
+            ("start_local", opt_string (iso_local `Start));
+            ("start_tz", opt_string (iso_tz `Start));
+            ("end", opt_string (iso `End));
+            ("end_local", opt_string (iso_local `End));
+            ("end_tz", opt_string (iso_tz `End));
             ( "location",
               match get_location event with
               | Some loc -> `String loc
@@ -731,12 +795,17 @@ let format_event ?(format = `Text) ?tz event =
               | Some desc -> `String desc
               | None -> `Null );
             ("calendar", match get_calendar_name event with cal -> `String cal);
-            ("alarms", `List (List.filter_map (fun alarm ->
-              match Format_utils.alarm_trigger alarm with
-              | Some (_, `Duration span) -> Some (`String (Format_utils.format_alarm_trigger span))
-              | Some (_, `Datetime _) -> Some (`String "at fixed time")
-              | None -> None
-            ) (get_alarms event)));
+            ( "alarms",
+              `List
+                (List.filter_map
+                   (fun alarm ->
+                     match Format_utils.alarm_trigger alarm with
+                     | Some (_, `Duration span) ->
+                         Some (`String (format_iso_duration span))
+                     | Some (_, `Datetime t) ->
+                         Some (`String (Ptime.to_rfc3339 ~tz_offset_s:0 t))
+                     | None -> None)
+                   (get_alarms event)) );
           ]
       in
       to_string json
@@ -744,22 +813,17 @@ let format_event ?(format = `Text) ?tz event =
       let summary =
         match get_summary event with Some summary -> summary | None -> ""
       in
-      let start =
-        match get_start_civil_date event with
-        | Some d -> format_civil_date d
-        | None -> format_datetime ?tz start
-      in
-      let end_str =
-        match (get_end_civil_date event, end_) with
-        | Some d, _ -> format_civil_date d
-        | None, Some e -> format_datetime ?tz e
-        | None, None -> ""
-      in
+      let iso, _, iso_tz = export_datetime ?tz event in
+      let field = function Some s -> s | None -> "" in
       let location =
         match get_location event with Some loc -> loc | None -> ""
       in
       let cal_id = match get_calendar_name event with cal -> cal in
-      Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary start end_str
+      Printf.sprintf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"" summary
+        (field (iso `Start))
+        (field (iso_tz `Start))
+        (field (iso `End))
+        (field (iso_tz `End))
         location cal_id
   | `Ics ->
       let calendar = to_ical_calendar event in
@@ -840,7 +904,7 @@ let format_events ?(format = `Text) ?tz ?get_color events =
       in
       Yojson.Safe.to_string (`List json_events)
   | `Csv ->
-      "\"Summary\",\"Start\",\"End\",\"Location\",\"Calendar\"\n"
+      "\"Summary\",\"Start\",\"Start TZ\",\"End\",\"End TZ\",\"Location\",\"Calendar\"\n"
       ^ String.concat "\n" (List.map (format_event ~format:`Csv ?tz) events)
   | `Sexp ->
       "("
