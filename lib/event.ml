@@ -296,13 +296,13 @@ let chain comp1 comp2 e1 e2 =
   let result = comp1 e1 e2 in
   if result <> 0 then result else comp2 e1 e2
 
+(* Resolve a stored TZID to a timezone, if it names one we know. *)
+let resolve_tz tzid = Timedesc.Time_zone.make tzid
+
 let sexp_of_t event =
   let open Sexplib.Sexp in
   let start = get_start event in
   let end_ = get_end event in
-  let resolve_tz tzid =
-    match Timedesc.Time_zone.make tzid with Some tz -> Some tz | None -> None
-  in
   let format_ptime_iso ?tz p =
     let dt = match tz with
       | Some tz -> Date.ptime_to_timedesc ~tz p
@@ -625,33 +625,53 @@ let format_event ?(format = `Text) ?tz event =
       in
       let start_timezone = get_start_timezone event in
       let end_timezone = get_end_timezone event in
-      let same_timezone =
-        match (start_timezone, end_timezone) with
-        | Some tz1, Some tz2 when tz1 = tz2 -> true
-        | _ -> false
-      in
-      let format timezone civil datetime is_end =
+      (* Unlike `list`, which shows a whole column and so needs one common
+         frame, `show` renders a single event: the zone it actually happens in
+         is the useful one. Each endpoint is therefore rendered in its own
+         zone, with the local reading demoted to a suffix when it differs. *)
+      let format timezone civil datetime =
         match is_date event with
         | true -> (
             match civil with
             | Some d -> format_civil_date d
             | None -> format_date ?tz datetime)
-        | false ->
-            let tz_suffix =
-              if (not is_end) && same_timezone then ""
-              else match timezone with None -> "" | Some t -> " (" ^ t ^ ")"
-            in
-            format_datetime ?tz datetime ^ tz_suffix
+        | false -> (
+            let local = Option.value tz ~default:(Date.local_timezone ()) in
+            match Option.bind timezone resolve_tz with
+            | Some event_tz
+              when Timedesc.Time_zone.name event_tz
+                   <> Timedesc.Time_zone.name local ->
+                Printf.sprintf "%s  [local: %s]"
+                  (format_datetime ~tz:event_tz datetime)
+                  (format_datetime ~tz:local datetime)
+            | _ -> format_datetime ~tz:local datetime)
       in
       let start_str =
         format_opt "Start"
-          (fun d -> format start_timezone (get_start_civil_date event) d false)
+          (fun d -> format start_timezone (get_start_civil_date event) d)
           (Some start)
       in
       let end_str =
         format_opt "End"
-          (fun d -> format end_timezone (get_end_civil_date event) d true)
+          (fun d -> format end_timezone (get_end_civil_date event) d)
           end_
+      in
+      (* Own-zone rendering can make a cross-zone event look longer or shorter
+         than it is (a 6h flight landing "the next morning"), so state it. *)
+      let duration_str =
+        match (end_, is_date event) with
+        | Some end_, false ->
+            let secs = Ptime.Span.to_float_s (Ptime.diff end_ start) in
+            if secs <= 0.0 then ""
+            else
+              let mins = int_of_float (secs /. 60.0) in
+              let h = mins / 60 and m = mins mod 60 in
+              let parts =
+                (if h > 0 then [ Printf.sprintf "%dh" h ] else [])
+                @ if m > 0 then [ Printf.sprintf "%dm" m ] else []
+              in
+              Printf.sprintf "Duration: %s\n" (String.concat " " parts)
+        | _ -> ""
       in
       let location_str = format_opt "Location" Fun.id (get_location event) in
       let description_str =
@@ -679,8 +699,9 @@ let format_event ?(format = `Text) ?tz event =
         |> String.concat ""
       in
       let file_str = format_opt "File" Fun.id (Some (snd (get_file event))) in
-      Printf.sprintf "%s%s%s%s%s%s%s%s%s" summary_str start_str end_str location_str
-        description_str rrule_str alarms_str other_props_str file_str
+      Printf.sprintf "%s%s%s%s%s%s%s%s%s%s" summary_str start_str end_str
+        duration_str location_str description_str rrule_str alarms_str
+        other_props_str file_str
   | `Json ->
       let open Yojson.Safe in
       let json =

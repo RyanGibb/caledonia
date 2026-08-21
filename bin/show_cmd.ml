@@ -1,8 +1,9 @@
 open Cmdliner
 open Caledonia_lib
 
-let run ~component_id ~format ~fs calendar_dir =
+let run ~component_id ~format ~timezone ~fs calendar_dir =
   let ( let* ) = Result.bind in
+  let tz = Query_args.parse_timezone ~timezone in
   let* components = Calendar_dir.get_components ~fs calendar_dir in
   let results = List.filter (fun c -> Component.get_id c = component_id) components in
   (if results = [] then print_endline "No component found."
@@ -12,7 +13,7 @@ let run ~component_id ~format ~fs calendar_dir =
       | Some cal_dir_name -> Calendar_dir.get_color ~fs calendar_dir cal_dir_name
       | None -> None
     in
-    print_endline (Component.format_components ~format ~get_color results));
+    print_endline (Component.format_components ~format ~tz ~get_color results));
   Ok ()
 
 let component_id_arg =
@@ -27,14 +28,16 @@ let format_arg =
     & info [ "format"; "o" ] ~docv:"FORMAT" ~doc)
 
 let cmd ~fs calendar_dir =
-  let run component_id format () =
-    match run ~component_id ~format ~fs calendar_dir with
+  let run component_id format timezone () =
+    match run ~component_id ~format ~timezone ~fs calendar_dir with
     | Error (`Msg msg) ->
         Printf.eprintf "Error: %s\n%!" msg;
         1
     | Ok () -> 0
   in
-  let term = Term.(const run $ component_id_arg $ format_arg) in
+  let term =
+    Term.(const run $ component_id_arg $ format_arg $ Query_args.timezone_arg)
+  in
   let doc = "Show details of a specific component" in
   let man =
     [
