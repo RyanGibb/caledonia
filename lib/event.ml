@@ -746,19 +746,22 @@ let format_events_with_dynamic_columns ?tz ?get_color events =
   else
     let event_data = List.map (text_event_data ?tz) events in
     (* Calculate max width for each column *)
+    (* Widths are measured in terminal columns, not bytes: summaries routinely
+       contain multi-byte or wide characters, which String.length over-counts
+       and so over-pads. *)
+    let width = Format_utils.display_width in
     let max_id_width =
-      List.fold_left
-        (fun acc (id, _, _, _, _, _) -> max acc (String.length id))
-        0 event_data
+      List.fold_left (fun acc (id, _, _, _, _, _) -> max acc (width id)) 0
+        event_data
     in
     let max_cal_width =
       List.fold_left
-        (fun acc (_, cal, _, _, _, _) -> max acc (String.length cal))
+        (fun acc (_, cal, _, _, _, _) -> max acc (width cal))
         0 event_data
     in
     let max_date_width =
       List.fold_left
-        (fun acc (_, _, date, _, _, _) -> max acc (String.length date))
+        (fun acc (_, _, date, _, _, _) -> max acc (width date))
         0 event_data
     in
     (* Calculate max width for summary+location *)
@@ -766,8 +769,7 @@ let format_events_with_dynamic_columns ?tz ?get_color events =
       List.fold_left
         (fun acc (_, _, _, summary, location, _) ->
           let full_length =
-            String.length summary
-            + if location <> "" then String.length location + 1 else 0
+            width summary + if location <> "" then width location + 1 else 0
           in
           max acc full_length)
         0 event_data
@@ -776,7 +778,7 @@ let format_events_with_dynamic_columns ?tz ?get_color events =
     let max_alarm_width =
       if has_alarms then
         List.fold_left
-          (fun acc (_, _, _, _, _, alarm) -> max acc (String.length alarm))
+          (fun acc (_, _, _, _, _, alarm) -> max acc (width alarm))
           0 event_data
       else 0
     in
