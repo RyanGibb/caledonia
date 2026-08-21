@@ -23,11 +23,6 @@ let run_event ~summary ~start_date ~start_time ~end_date ~end_time ~location
       | None, Some _ -> start_date
       | _ -> end_date
     in
-    let end_date =
-      match (start_date, end_date) with
-      | Some _, None -> start_date
-      | _ -> end_date
-    in
     let end_timezone =
       match (end_date, end_time, end_timezone) with
       | Some _, Some _, None -> timezone
@@ -137,7 +132,7 @@ let cmd ~fs calendar_dir =
       `S Manpage.s_examples;
       `I
         ( "Add an event for today:",
-          "caled add \"Meeting\" --date today --time 14:00" );
+          "caled add \"Meeting\" --date today --time 14:00 --end-time 15:00" );
       `I
         ( "Add a todo with a due date:",
           "caled add --type todo \"Fix bug\" --due 2025-04-15 --priority 1" );
@@ -147,7 +142,8 @@ let cmd ~fs calendar_dir =
       `I
         ( "Add an event with location and description:",
           "caled add \"Lunch with Bob\" --date 2025-04-02 --time 12:30 \
-           --location \"Pasta Restaurant\" --description \"Discuss project plans\"" );
+           --end-time 13:30 --location \"Pasta Restaurant\" --description \
+           \"Discuss project plans\"" );
       `I
         ( "Add a todo with percent complete:",
           "caled add --type todo \"Write report\" --due 2025-05-01 --percent 50" );
