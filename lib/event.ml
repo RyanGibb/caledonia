@@ -434,7 +434,7 @@ let format_time ?tz date =
 let format_datetime ?tz date =
   let tz_str =
     match tz with
-    | Some tz -> Printf.sprintf "(%s)" (Timedesc.Time_zone.name tz)
+    | Some tz -> Printf.sprintf " (%s)" (Timedesc.Time_zone.name tz)
     | None -> ""
   in
   Printf.sprintf "%s %s%s" (format_date ?tz date) (format_time ?tz date) tz_str

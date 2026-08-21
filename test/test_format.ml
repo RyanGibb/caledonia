@@ -67,8 +67,8 @@ let%expect_test "format_event entries" =
   print_string (Event.format_event ~format:`Entries ~tz:utc (parse_event ~fs timed_event_ics));
   [%expect {|
     Summary: Team meeting
-    Start: 2025-04-17 Thu 14:00(Europe/London)  [local: 2025-04-17 Thu 13:00(UTC)]
-    End: 2025-04-17 Thu 15:00(Europe/London)  [local: 2025-04-17 Thu 14:00(UTC)]
+    Start: 2025-04-17 Thu 14:00 (Europe/London)  [local: 2025-04-17 Thu 13:00 (UTC)]
+    End: 2025-04-17 Thu 15:00 (Europe/London)  [local: 2025-04-17 Thu 14:00 (UTC)]
     Duration: 1h
     Location: Room 3
     Description: Quarterly planning
@@ -81,8 +81,8 @@ let%expect_test "format_event entries shows recurrence with UTC UNTIL" =
   print_string (Event.format_event ~format:`Entries ~tz:utc (parse_event ~fs recurring_event_ics));
   [%expect {|
     Summary: Standup
-    Start: 2025-04-17 Thu 09:00(Europe/London)  [local: 2025-04-17 Thu 08:00(UTC)]
-    End: 2025-04-17 Thu 09:30(Europe/London)  [local: 2025-04-17 Thu 08:30(UTC)]
+    Start: 2025-04-17 Thu 09:00 (Europe/London)  [local: 2025-04-17 Thu 08:00 (UTC)]
+    End: 2025-04-17 Thu 09:30 (Europe/London)  [local: 2025-04-17 Thu 08:30 (UTC)]
     Duration: 30m
     Recurrence: FREQ=WEEKLY;UNTIL=20250601T080000Z
     File: test.ics
