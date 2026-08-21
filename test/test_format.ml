@@ -57,7 +57,7 @@ let%expect_test "format_event text" =
   print_endline (Event.format_event ~format:`Text ~tz:utc (parse_event ~fs timed_event_ics));
   print_endline (Event.format_event ~format:`Text ~tz:utc (parse_event ~fs all_day_event_ics));
   [%expect {|
-    work	2025-04-17 Thu 13:00 - 14:00 (Europe/London)	Team meeting	@Room 3	timed-event
+    work	2025-04-17 Thu 13:00 - 14:00  [tz: Europe/London]	Team meeting	@Room 3	timed-event
     work	2025-04-17 Thu - 2025-04-19 Sat	Conference		all-day-event
     |}]
 
@@ -140,6 +140,6 @@ let%expect_test "format_events aligns columns across events" =
   let events = [ parse_event ~fs timed_event_ics; parse_event ~fs all_day_event_ics ] in
   print_endline (Event.format_events ~format:`Text ~tz:utc events);
   [%expect {|
-    work  2025-04-17 Thu 13:00 - 14:00 (Europe/London)  Team meeting @Room 3  timed-event
-    work  2025-04-17 Thu - 2025-04-19 Sat               Conference            all-day-event
+    work  2025-04-17 Thu 13:00 - 14:00  [tz: Europe/London]  Team meeting @Room 3  timed-event
+    work  2025-04-17 Thu - 2025-04-19 Sat                    Conference            all-day-event
     |}]

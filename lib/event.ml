@@ -515,23 +515,8 @@ let text_event_data ?tz event =
   in
   let start_timezone = get_start_timezone event in
   let end_timezone = get_end_timezone event in
-  let same_timezone =
-    match (start_timezone, end_timezone) with
-    | Some tz1, Some tz2 when tz1 = tz2 -> true
-    | _ -> false
-  in
   let start_time =
-    match is_date event with
-    | true -> ""
-    | false ->
-        let tz_str =
-          if same_timezone then " " ^ format_time ?tz start
-          else
-            match start_timezone with
-            | Some tzid -> " " ^ format_time ?tz start ^ " (" ^ tzid ^ ")"
-            | None -> " " ^ format_time ?tz start
-        in
-        tz_str
+    match is_date event with true -> "" | false -> " " ^ format_time ?tz start
   in
   let end_date, end_time =
     match end_ with
@@ -549,14 +534,31 @@ let text_event_data ?tz event =
                 in
                 (" - " ^ end_str, ""))
         | false -> (
-            let time_str =
-              match end_timezone with
-              | Some tzid -> " " ^ format_time ?tz end_ ^ " (" ^ tzid ^ ")"
-              | None -> " " ^ format_time ?tz end_
-            in
+            let time_str = " " ^ format_time ?tz end_ in
             match day_diff start ~next:end_ == 0 with
             | true -> ("", " -" ^ time_str)
             | false -> (" - " ^ format_date ?tz end_, time_str)))
+  in
+  (* Times above are always rendered in the display timezone, so the column
+     stays sortable and comparable across rows. This annotation reports the
+     zone(s) the event is *stored* in, and is omitted when they match the
+     display timezone and so would add nothing. *)
+  let tz_annotation =
+    if is_date event then ""
+    else
+      let differs tzid =
+        match tz with
+        | Some display -> tzid <> Timedesc.Time_zone.name display
+        | None -> true
+      in
+      let single tzid =
+        if differs tzid then Printf.sprintf "  [tz: %s]" tzid else ""
+      in
+      match (start_timezone, end_timezone) with
+      | Some s, Some e when s <> e -> Printf.sprintf "  [tz: %s → %s]" s e
+      | Some s, _ -> single s
+      | None, Some e -> single e
+      | None, None -> ""
   in
   let summary =
     match get_summary event with
@@ -570,7 +572,9 @@ let text_event_data ?tz event =
   in
   let alarm_str = Format_utils.format_alarms_short (get_alarms event) in
   let calendar_name = get_calendar_name event in
-  let date_time = start_date ^ start_time ^ end_date ^ end_time in
+  let date_time =
+    start_date ^ start_time ^ end_date ^ end_time ^ tz_annotation
+  in
   (id, calendar_name, date_time, summary, location, alarm_str)
 
 let format_prop_value = function
